@@ -1,0 +1,21 @@
+-- Samvedna reference seed data
+-- NOTE: Auth users must be created via the Node seed script (`pnpm seed`) because
+-- inserting into auth.users requires the Supabase Admin API.
+--
+-- This file documents the demo data structure. Run migrations first, then:
+--   1. pnpm seed
+--
+-- Demo users (password: Samvedna@2024):
+--   admin@samvedna.demo          — admin
+--   official@samvedna.demo       — official (Rajesh Kumar, Jaipur district)
+--   counsellor1@samvedna.demo    — counsellor (Dr. Priya Sharma, Hindi)
+--   counsellor2@samvedna.demo    — counsellor (Dr. Ananya Iyer, Tamil)
+--   victim1@samvedna.demo        — Meera Devi (high risk, Jaipur)
+--   victim2@samvedna.demo        — Lakshmi Rajan (moderate, Chennai)
+--   victim3@samvedna.demo        — Sunita Yadav (critical, Lucknow)
+--   victim4@samvedna.demo        — Fatima Khan (low, Jaipur)
+--
+-- Cases span risk levels: low → moderate → high → critical
+-- Alerts exist for SAM-2024-001 (high) and SAM-2024-003 (critical)
+
+SELECT 'Run `pnpm seed` to populate demo data via Supabase Admin API' AS instruction;
