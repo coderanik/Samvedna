@@ -1,0 +1,28 @@
+{
+  "name": "samvedna",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n web,api,ml -c blue,green,yellow \"pnpm --filter @samvedna/web dev\" \"pnpm --filter @samvedna/api dev\" \"pnpm --filter @samvedna/ml-service dev\"",
+    "dev:clean": "for p in 3000 4000 8001; do lsof -ti :$p | xargs kill -9 2>/dev/null; done; pnpm dev",
+    "dev:web": "pnpm --filter @samvedna/web dev",
+    "dev:api": "pnpm --filter @samvedna/api dev",
+    "dev:ml": "pnpm --filter @samvedna/ml-service dev",
+    "build": "pnpm --filter @samvedna/shared-types build && pnpm --filter @samvedna/web build && pnpm --filter @samvedna/api build",
+    "lint": "pnpm -r lint",
+    "seed": "tsx scripts/seed.ts",
+    "migrate:check": "tsx scripts/migrate-check.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.47.12",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.4"
+}
