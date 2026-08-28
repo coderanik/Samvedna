@@ -1,0 +1,35 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+@layer base {
+  :root {
+    --background: 30 25% 98%;
+    --foreground: 220 20% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 14%;
+    --primary: 262 52% 47%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 30 30% 94%;
+    --secondary-foreground: 220 20% 20%;
+    --muted: 30 20% 96%;
+    --muted-foreground: 220 10% 45%;
+    --accent: 160 40% 42%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 30 15% 88%;
+    --input: 30 15% 88%;
+    --ring: 262 52% 47%;
+    --radius: 0.75rem;
+    --risk-low: 142 71% 45%;
+    --risk-moderate: 38 92% 50%;
+    --risk-high: 25 95% 53%;
+    --risk-critical: 0 72% 51%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased; }
+}
