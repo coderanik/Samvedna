@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "Samvedna",
+    "slug": "samvedna-victim",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "samvedna",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F3D3E"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "org.samvedna.victim",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Samvedna needs the camera for optional video calls with your counsellor.",
+        "NSMicrophoneUsageDescription": "Samvedna needs the microphone for Metal AI and counsellor calls.",
+        "NSSpeechRecognitionUsageDescription": "Optional voice input for check-ins."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F3D3E"
+      },
+      "package": "org.samvedna.victim",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Samvedna to use the camera for counsellor video calls."
+        }
+      ],
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
