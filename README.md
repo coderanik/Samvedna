@@ -250,6 +250,7 @@ Leave this terminal window **open**. When ready, you should see three services r
 | **Web** | http://localhost:3000 | Open this in Chrome |
 | **API** | http://localhost:4000 | Backend (you usually don’t open this) |
 | **ML** | http://localhost:8001 | AI service |
+| **Mobile (victim)** | Expo Go / simulator | `pnpm dev:mobile` — see `apps/mobile/README.md` |
 
 **Quick health check** — in a **new** terminal tab:
 
