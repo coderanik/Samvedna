@@ -7,9 +7,12 @@
     "dev:web": "pnpm --filter @samvedna/web dev",
     "dev:api": "pnpm --filter @samvedna/api dev",
     "dev:ml": "pnpm --filter @samvedna/ml-service dev",
+    "dev:mobile": "pnpm --filter @samvedna/mobile start",
+    "dev:mobile:android": "bash scripts/open-mobile-android.sh",
     "build": "pnpm --filter @samvedna/shared-types build && pnpm --filter @samvedna/web build && pnpm --filter @samvedna/api build",
     "lint": "pnpm -r lint",
     "seed": "tsx scripts/seed.ts",
+    "clear-seed": "tsx scripts/clear-seed.ts",
     "migrate:check": "tsx scripts/migrate-check.ts"
   },
   "dependencies": {
