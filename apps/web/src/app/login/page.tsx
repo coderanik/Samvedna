@@ -13,6 +13,7 @@ import { Heart } from "lucide-react";
 
 const PORTAL = process.env.NEXT_PUBLIC_PORTAL ?? "";
 const IS_ADMIN_PORTAL = PORTAL === "admin";
+const SHOW_ADMIN_HINT = process.env.NEXT_PUBLIC_SHOW_ADMIN_HINT === "1";
 
 const FIXED_ADMIN_EMAIL = "admin@samvedna.demo";
 const FIXED_ADMIN_PASSWORD = "SamvednaAdmin@2024";
@@ -20,7 +21,7 @@ const FIXED_ADMIN_PASSWORD = "SamvednaAdmin@2024";
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState(IS_ADMIN_PORTAL ? FIXED_ADMIN_EMAIL : "");
-  const [password, setPassword] = useState(IS_ADMIN_PORTAL ? FIXED_ADMIN_PASSWORD : "");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -28,7 +29,6 @@ export default function LoginPage() {
   useEffect(() => {
     if (IS_ADMIN_PORTAL) {
       setEmail(FIXED_ADMIN_EMAIL);
-      setPassword(FIXED_ADMIN_PASSWORD);
     }
   }, []);
 
@@ -116,7 +116,7 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {IS_ADMIN_PORTAL && (
+          {IS_ADMIN_PORTAL && SHOW_ADMIN_HINT && (
             <div className="mb-4 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-left text-xs text-muted-foreground">
               <p className="font-semibold text-foreground">Fixed admin login</p>
               <p>
@@ -127,6 +127,11 @@ export default function LoginPage() {
                 <span className="font-mono text-foreground">{FIXED_ADMIN_PASSWORD}</span>
               </p>
             </div>
+          )}
+          {IS_ADMIN_PORTAL && !SHOW_ADMIN_HINT && (
+            <p className="mb-4 text-center text-xs text-muted-foreground">
+              System administration portal — use the fixed admin credentials from your ops notes.
+            </p>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">

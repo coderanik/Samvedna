@@ -5,10 +5,22 @@ import { supabaseAdmin } from "../lib/supabase";
 import { createCheckinAndScore } from "../lib/scoring-pipeline";
 import type { Server as SocketServer } from "socket.io";
 
+const channelEnum = z.enum([
+  "chat",
+  "ivrs",
+  "sms",
+  "app",
+  "ai_voice",
+  "portal",
+  "chatbot",
+  "nhaa_14566",
+  "helpline",
+]);
+
 const createCheckinSchema = z.object({
   case_id: z.string().uuid(),
   message: z.string().min(1).max(10000),
-  channel: z.enum(["chat", "ivrs", "sms", "app", "ai_voice"]).optional().default("chat"),
+  channel: channelEnum.optional().default("chat"),
 });
 
 export function checkinsRouter(io: SocketServer) {
@@ -40,6 +52,8 @@ export function checkinsRouter(io: SocketServer) {
         checkin: result.checkin,
         distress_score: result.distressScore,
         alert: result.alert,
+        alerts: result.alerts,
+        intelligence: result.intelligence,
       });
     } catch (err) {
       next(err);

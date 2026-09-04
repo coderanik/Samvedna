@@ -2,11 +2,29 @@
 
 export type UserRole = "victim" | "counsellor" | "official" | "admin";
 
-export type CaseStatus = "investigation" | "trial" | "rehabilitation" | "closed";
+export type CaseStatus =
+  | "complaint_registration"
+  | "investigation"
+  | "trial"
+  | "compensation"
+  | "rehabilitation"
+  | "protection_followup"
+  | "closed";
 
-export type CheckinChannel = "chat" | "ivrs" | "sms" | "app" | "ai_voice";
+export type CheckinChannel =
+  | "chat"
+  | "ivrs"
+  | "sms"
+  | "app"
+  | "ai_voice"
+  | "portal"
+  | "chatbot"
+  | "nhaa_14566"
+  | "helpline";
 
 export type RiskLevel = "low" | "moderate" | "high" | "critical";
+
+export type TrendDirection = "rising" | "stable" | "improving";
 
 export type AlertStatus = "open" | "acknowledged" | "resolved";
 
@@ -16,9 +34,14 @@ export type SupportType =
   | "legal"
   | "financial"
   | "protection"
-  | "rehabilitation";
+  | "rehabilitation"
+  | "relocation"
+  | "witness_protection"
+  | "follow_up";
 
 export type SupportStatus = "suggested" | "in_progress" | "completed";
+
+export type ModelConfidence = "high" | "medium" | "low" | "fallback";
 
 // ─── Database row types ──────────────────────────────────────────────────────
 
@@ -53,6 +76,11 @@ export interface Checkin {
   created_at: string;
 }
 
+export interface InterventionRecommendation {
+  type: SupportType | string;
+  description: string;
+}
+
 export interface DistressScore {
   id: string;
   checkin_id: string;
@@ -61,6 +89,15 @@ export interface DistressScore {
   risk_level: RiskLevel;
   reasoning: string;
   signals_detected: string[];
+  trend_direction?: TrendDirection | null;
+  escalation_risk_7d?: number | null;
+  escalation_reasoning?: string | null;
+  recommended_interventions?: InterventionRecommendation[];
+  sentiment?: string | null;
+  emotion_indicators?: string[];
+  contributing_factors?: string[];
+  model_confidence?: ModelConfidence | null;
+  prediction_method?: string | null;
   created_at: string;
 }
 
@@ -114,6 +151,13 @@ export interface CreateCheckinResponse {
   checkin: Checkin;
   distress_score: DistressScore;
   alert?: Alert;
+  alerts?: Alert[];
+  intelligence?: {
+    trend_direction: TrendDirection;
+    escalation_risk_7d: number;
+    contributing_factors: string[];
+    priority_hint?: string;
+  };
 }
 
 export interface CreateNoteRequest {
@@ -129,6 +173,16 @@ export interface DistressScoreResult {
   risk_level: RiskLevel;
   signals_detected: string[];
   reasoning: string;
+  sentiment?: string;
+  emotion_indicators?: string[];
+  trend_direction?: TrendDirection;
+  escalation_risk_7d?: number;
+  escalation_reasoning?: string;
+  recommended_interventions?: InterventionRecommendation[];
+  contributing_factors?: string[];
+  model_confidence?: ModelConfidence;
+  prediction_method?: string;
+  disclaimer?: string;
 }
 
 export interface ScoreCheckinPayload {
@@ -143,21 +197,46 @@ export interface ScoreCheckinPayload {
     case_type: string;
     days_since_opened: number;
     preferred_language: string;
+    case_status?: string;
+    channel?: string;
   };
 }
 
 export interface DashboardSummary {
   total_cases: number;
+  total_beneficiaries?: number;
   cases_by_risk: Record<RiskLevel, number>;
+  cases_by_stage?: Record<string, number>;
+  cases_by_district?: Array<{ district: string; count: number; high_risk: number }>;
+  cases_by_state?: Array<{ state: string; count: number; high_risk: number }>;
+  rising_risk_cases?: number;
+  average_distress?: number;
   open_alerts: number;
   high_risk_cases: Array<{
     case_id: string;
     case_number: string;
     victim_name: string;
     district: string;
+    state?: string;
     current_risk: RiskLevel;
     current_score: number;
+    trend_direction?: TrendDirection | null;
+    escalation_risk_7d?: number | null;
   }>;
+  scope?: "district" | "state" | "national";
+}
+
+export interface PrioritisedCase extends Case {
+  victim?: Profile;
+  assigned_counsellor?: Profile;
+  assigned_official?: Profile;
+  latest_score?: DistressScore | null;
+  priority_score: number;
+  trend_direction: TrendDirection;
+  escalation_risk_7d: number;
+  hours_since_interaction: number | null;
+  recommended_action: string;
+  anonymised_label: string;
 }
 
 export interface CaseWithDetails extends Case {
@@ -165,6 +244,7 @@ export interface CaseWithDetails extends Case {
   assigned_counsellor?: Profile;
   assigned_official?: Profile;
   latest_score?: DistressScore;
+  priority_score?: number;
 }
 
 export interface CaseTimeline {
@@ -174,6 +254,17 @@ export interface CaseTimeline {
   intervention_notes: InterventionNote[];
   support_recommendations: SupportRecommendation[];
   timeline_events: CaseTimelineEvent[];
+  intelligence?: {
+    trend_direction: TrendDirection;
+    escalation_risk_7d: number;
+    average_score: number;
+    consecutive_elevated: number;
+    contributing_factors: string[];
+    why_flagged: string[];
+    recommended_action: string;
+    prediction_method: string;
+    disclaimer: string;
+  };
 }
 
 export interface HealthResponse {
@@ -191,6 +282,9 @@ export interface NewAlertEvent {
   victim_name: string;
   severity: RiskLevel;
   reasoning: string;
+  escalation_risk_7d?: number;
+  trend_direction?: TrendDirection;
+  recommended_action?: string;
 }
 
 export interface JoinCaseRoomPayload {
@@ -200,7 +294,13 @@ export interface JoinCaseRoomPayload {
 // ─── Call sessions ───────────────────────────────────────────────────────────
 
 export type CallType = "counsellor" | "ai_voice";
-export type CallStatus = "requested" | "ringing" | "in_progress" | "completed" | "missed" | "cancelled";
+export type CallStatus =
+  | "requested"
+  | "ringing"
+  | "in_progress"
+  | "completed"
+  | "missed"
+  | "cancelled";
 
 export interface CallSession {
   id: string;
@@ -239,3 +339,23 @@ export interface IncomingCallEvent {
   victim_name: string;
   call_type: CallType;
 }
+
+export const PRIORITY_CASE_TYPES = [
+  "rape",
+  "gang_rape",
+  "murder",
+  "grievous_hurt",
+  "arson",
+  "witness_intimidation",
+  "caste_based_violence",
+] as const;
+
+export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
+  complaint_registration: "Complaint registration",
+  investigation: "Investigation",
+  trial: "Trial",
+  compensation: "Compensation",
+  rehabilitation: "Rehabilitation",
+  protection_followup: "Protection / follow-up",
+  closed: "Closed",
+};

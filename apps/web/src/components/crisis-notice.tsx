@@ -6,7 +6,7 @@ export function CrisisNotice({ locale = "en" }: { locale?: string }) {
     locale === "hi"
       ? "यह एक सहायता उपकरण है, आपातकालीन सेवा नहीं।"
       : locale === "ta"
-        ? "இது ஒரு ஆதரவு கருவி, அavசர சேவை அல்ல."
+        ? "இது ஒரு ஆதரவு கருவி, அவசர சேவை அல்ல."
         : "This is a support tool, not an emergency service.";
 
   return (
@@ -18,6 +18,7 @@ export function CrisisNotice({ locale = "en" }: { locale?: string }) {
           KIRAN Helpline: <strong>{CRISIS_HELPLINE}</strong> (24×7)
         </span>
         <span>Emergency: <strong>112</strong></span>
+        <span>NHAA: <strong>14566</strong></span>
       </div>
     </div>
   );

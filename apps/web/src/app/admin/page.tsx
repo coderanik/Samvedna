@@ -338,8 +338,147 @@ export default function AdminPage() {
             <UserTable users={counsellors} />
           </CardContent>
         </Card>
+
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Simulated NHAA / portal intake</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Architected connector demo — not a live NHAA 14566 government API. Creates victim +
+              case and optional first check-in through the same scoring pipeline.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <NhaaIntakeForm
+              token={token}
+              counsellors={counsellors}
+              busy={busy}
+              setBusy={setBusy}
+              setMessage={setMessage}
+              onDone={() => reload(token)}
+            />
+            <p className="mt-4 text-sm">
+              <a href="/official/dashboard" className="text-primary underline">
+                Open national / district intelligence dashboard →
+              </a>
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </AppShell>
+  );
+}
+
+function NhaaIntakeForm({
+  token,
+  counsellors,
+  busy,
+  setBusy,
+  setMessage,
+  onDone,
+}: {
+  token: string;
+  counsellors: Profile[];
+  busy: boolean;
+  setBusy: (v: boolean) => void;
+  setMessage: (v: string) => void;
+  onDone: () => void;
+}) {
+  const [f, setF] = useState({
+    complaint_id: `CMP${Date.now().toString().slice(-6)}`,
+    full_name: "",
+    case_type: "caste_based_violence",
+    district: "Demo District",
+    state: "Demo State",
+    initial_message:
+      "I am scared. They threatened me again before the hearing. I cannot sleep.",
+    assign_counsellor_id: "",
+  });
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      await apiFetch("/intake/nhaa", {
+        method: "POST",
+        token,
+        body: JSON.stringify({
+          ...f,
+          assign_counsellor_id: f.assign_counsellor_id || undefined,
+          channel: "chat",
+          status: "investigation",
+        }),
+      });
+      setMessage("NHAA-sim intake created — case scored through the monitoring pipeline.");
+      onDone();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Intake failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="grid gap-3 md:grid-cols-2">
+      <div className="space-y-1.5">
+        <Label>Complaint ID</Label>
+        <Input
+          value={f.complaint_id}
+          onChange={(e) => setF({ ...f, complaint_id: e.target.value })}
+          required
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Victim name</Label>
+        <Input
+          value={f.full_name}
+          onChange={(e) => setF({ ...f, full_name: e.target.value })}
+          required
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Priority case type</Label>
+        <select
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          value={f.case_type}
+          onChange={(e) => setF({ ...f, case_type: e.target.value })}
+        >
+          <option value="rape">Rape</option>
+          <option value="gang_rape">Gang rape</option>
+          <option value="murder">Murder</option>
+          <option value="grievous_hurt">Grievous hurt</option>
+          <option value="arson">Arson</option>
+          <option value="witness_intimidation">Witness intimidation</option>
+          <option value="caste_based_violence">Caste-based violence</option>
+        </select>
+      </div>
+      <div className="space-y-1.5">
+        <Label>Assign counsellor</Label>
+        <select
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          value={f.assign_counsellor_id}
+          onChange={(e) => setF({ ...f, assign_counsellor_id: e.target.value })}
+        >
+          <option value="">Unassigned</option>
+          {counsellors.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.full_name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="space-y-1.5 md:col-span-2">
+        <Label>Initial distress message</Label>
+        <Input
+          value={f.initial_message}
+          onChange={(e) => setF({ ...f, initial_message: e.target.value })}
+        />
+      </div>
+      <Button type="submit" disabled={busy} className="md:col-span-2">
+        {busy ? "Ingesting…" : "Run simulated intake"}
+      </Button>
+    </form>
   );
 }
 

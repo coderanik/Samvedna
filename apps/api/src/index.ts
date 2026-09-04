@@ -14,6 +14,9 @@ import { webhooksRouter } from "./routes/webhooks";
 import { adminRouter } from "./routes/admin";
 import { chatRouter } from "./routes/chat";
 import { callsRouter } from "./routes/calls";
+import { intakeRouter } from "./routes/intake";
+import { outreachRouter } from "./routes/outreach";
+import { processDueOutreach } from "./lib/cadence-engine";
 import { supabaseAdmin } from "./lib/supabase";
 
 const PORT = parseInt(process.env.PORT ?? "4000", 10);
@@ -49,6 +52,8 @@ app.use("/alerts", alertsRouter());
 app.use("/dashboard", dashboardRouter());
 app.use("/webhooks", webhooksRouter(io));
 app.use("/admin", adminRouter());
+app.use("/intake", intakeRouter(io));
+app.use("/outreach", outreachRouter());
 
 app.use(errorHandler);
 
@@ -73,6 +78,10 @@ io.on("connection", (socket) => {
 httpServer.listen(PORT, () => {
   console.log(`Samvedna API running on http://localhost:${PORT}`);
   console.log(`Socket.io CORS origins: ${CORS_ORIGINS.join(", ")}`);
+  // Care cadence tick — process due / missed outreach every 60s
+  setInterval(() => {
+    processDueOutreach().catch((err) => console.warn("[outreach tick]", err));
+  }, 60_000);
 });
 
 export { io, supabaseAdmin };

@@ -52,6 +52,47 @@ export function casesRouter() {
     }
   });
 
+  router.get("/:id/scores/:scoreId/explain", requireAuth, async (req, res, next) => {
+    try {
+      const { data: caseRow } = await supabaseAdmin
+        .from("cases")
+        .select("*")
+        .eq("id", req.params.id)
+        .single();
+      if (!caseRow || !canAccessCase(req.user!.role, req.user!.id, caseRow)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      if (req.user!.role === "victim") {
+        return res.status(403).json({ error: "Explanations are for care teams only" });
+      }
+
+      const { data: score } = await supabaseAdmin
+        .from("distress_scores")
+        .select("*")
+        .eq("id", req.params.scoreId)
+        .eq("case_id", req.params.id)
+        .single();
+      if (!score) return res.status(404).json({ error: "Score not found" });
+
+      const { data: contributions } = await supabaseAdmin
+        .from("score_contributions")
+        .select("*")
+        .eq("distress_score_id", score.id)
+        .order("contribution", { ascending: false });
+
+      res.json({
+        score,
+        contributions: contributions ?? [],
+        arithmetic_note:
+          "This explanation is the same weighted composite arithmetic that produced the score — not a second model rationalising the first.",
+        disclaimer:
+          "Triage decision-support for authorised professionals. Not a clinical diagnosis.",
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.get("/:id/timeline", requireAuth, async (req, res, next) => {
     try {
       const caseId = req.params.id;
@@ -189,10 +230,32 @@ export function casesRouter() {
 
   router.patch("/:id/support/:supportId", requireAuth, async (req, res, next) => {
     try {
+      if (!["counsellor", "official", "admin"].includes(req.user!.role)) {
+        return res.status(403).json({ error: "Insufficient permissions" });
+      }
       const statusSchema = z.object({
         status: z.enum(["suggested", "in_progress", "completed"]),
       });
       const body = statusSchema.parse(req.body);
+
+      const { data: caseRow } = await supabaseAdmin
+        .from("cases")
+        .select("assigned_counsellor_id, assigned_official_id")
+        .eq("id", req.params.id)
+        .single();
+      if (!caseRow) return res.status(404).json({ error: "Case not found" });
+      if (
+        req.user!.role === "counsellor" &&
+        caseRow.assigned_counsellor_id !== req.user!.id
+      ) {
+        return res.status(403).json({ error: "Not assigned to this case" });
+      }
+      if (
+        req.user!.role === "official" &&
+        caseRow.assigned_official_id !== req.user!.id
+      ) {
+        return res.status(403).json({ error: "Not assigned to this case" });
+      }
 
       const { data, error } = await supabaseAdmin
         .from("support_recommendations")

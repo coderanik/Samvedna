@@ -1,6 +1,6 @@
 # Samvedna — Mental Well-being Monitoring for Crime Victims
 
-**Samvedna** (संवेदना — “empathy” in Sanskrit) is a web app that helps crime victims share how they are feeling through **chat** or **phone calls**. An AI reads their messages, gives a **distress score**, and **alerts counsellors and officials** when someone needs urgent help.
+**Samvedna** (संवेदना — “empathy” in Sanskrit) is an AI-assisted **Dynamic Mental Health Monitoring** platform for **atrocity survivors and complainants** under the SC/ST (Prevention of Atrocities) Act — reached via NHAA 14566, Integrated Portal, chatbot, mobile, IVRS and helpline follow-ups. It supports continuous check-ins, triage scoring, escalation risk (MVP), counsellor prioritisation, and POA-aligned intervention recommendations for authorised professionals.
 
 > Samvedna is a **support tool**, not an emergency service.  
 > **Emergency:** dial **112** · **KIRAN Mental Health Helpline:** **1800-599-0019** (24×7)
@@ -83,6 +83,15 @@ SAMVEDNA/
 ```
 
 When you run `pnpm dev`, **three programs start at once** — the website, the API, and the AI service. All three must be running for chat and scoring to work.
+
+### Presentation / NHAA alignment
+
+See [`docs/PRESENTATION.md`](docs/PRESENTATION.md) for the audit summary, LIVE vs ARCHITECTED honesty labels, and a 4-minute demo script.
+
+**Apply DB upgrades** (Supabase → SQL Editor, in order):
+
+1. `supabase/migrations/20260904000001_distress_intelligence.sql`
+2. `supabase/migrations/20260905000001_samvedna_v2.sql` (outreach, score_contributions, POA catalog)
 
 ---
 

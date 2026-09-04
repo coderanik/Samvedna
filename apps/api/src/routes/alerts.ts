@@ -17,7 +17,9 @@ export function alertsRouter() {
         `)
         .order("created_at", { ascending: false });
 
-      if (user.role === "counsellor") {
+      if (user.role === "victim") {
+        return res.status(403).json({ error: "Victims cannot list alerts" });
+      } else if (user.role === "counsellor") {
         query = query.eq("assigned_to", user.id);
       } else if (user.role === "official") {
         const { data: officialCases } = await supabaseAdmin

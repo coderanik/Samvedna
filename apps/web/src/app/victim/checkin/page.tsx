@@ -132,7 +132,7 @@ export default function VictimCheckinPage() {
       await apiFetch<CreateCheckinResponse>("/checkins", {
         method: "POST",
         token,
-        body: JSON.stringify({ case_id: caseRow.id, message: transcript, channel: "chat" }),
+        body: JSON.stringify({ case_id: caseRow.id, message: transcript, channel: "chatbot" }),
       });
       setMessages((prev) => [
         ...prev,
@@ -143,7 +143,7 @@ export default function VictimCheckinPage() {
               ? "आपकी जांच सहेज ली गई है। धन्यवाद। जब भी तैयार हों, मैं यहाँ हूँ।"
               : locale === "ta"
                 ? "உங்கள் சரிபார்ப்பு சேமிக்கப்பட்டது. நன்றி."
-                : "Your check-in has been saved. Thank you — I'm here whenever you need.",
+                : "Thank you for telling me. Someone who cares is looking after your case. I'm here whenever you need.",
         },
       ]);
     } catch (err) {
@@ -151,6 +151,21 @@ export default function VictimCheckinPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function needHelpNow() {
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content:
+          locale === "hi"
+            ? "आप सुरक्षित हैं — मदद उपलब्ध है। आपातकाल 112 · KIRAN 1800-599-0019 · Tele-MANAS 14416 · NHAA 14566। कोई भी स्पष्टीकरण आवश्यक नहीं।"
+            : locale === "ta"
+              ? "நீங்கள் தனியாக இல்லை. அவசரம் 112 · KIRAN 1800-599-0019 · Tele-MANAS 14416 · NHAA 14566."
+              : "You do not have to explain anything first. Emergency 112 · KIRAN 1800-599-0019 · Tele-MANAS 14416 · NHAA 14566. A human care path is available.",
+      },
+    ]);
   }
 
   return (
@@ -174,14 +189,23 @@ export default function VictimCheckinPage() {
 
         <CrisisNotice locale={locale} />
 
-        <Card className="border-primary/20 bg-primary/5">
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full border-teal-800/20 bg-teal-50 text-teal-950 hover:bg-teal-100"
+          onClick={needHelpNow}
+        >
+          I need help now
+        </Button>
+
+        <Card className="border-teal-900/10 bg-white/70">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <Phone className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+              <Phone className="mt-0.5 h-5 w-5 shrink-0 text-teal-800" />
               <div className="text-sm">
                 <p className="font-medium">Prefer to talk instead of type?</p>
                 <p className="text-muted-foreground">
-                  Voice check-ins route to your counsellor or AI based on your distress level.
+                  You can start a gentle voice conversation whenever you are ready.
                 </p>
               </div>
             </div>
