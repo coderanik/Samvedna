@@ -32,3 +32,7 @@ pnpm-debug.log*
 
 # Supabase local
 .supabase/
+
+# Mobile secrets
+apps/mobile/.env
+apps/mobile/.expo/
