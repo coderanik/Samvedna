@@ -3,11 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
-import { AppShell } from "@/components/app-shell";
 import { RiskBadge, TrendBadge } from "@/components/risk-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiFetch } from "@/lib/utils";
 import { IncomingCallPanel } from "@/components/incoming-call-panel";
+import { GoneQuietRail, type GoneQuietItem } from "@/components/gone-quiet-rail";
 import type { PrioritisedCase } from "@samvedna/shared-types";
 
 export default function CounsellorCasesPage() {
@@ -16,10 +15,8 @@ export default function CounsellorCasesPage() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState("");
   const [token, setToken] = useState("");
-
-  const [goneQuiet, setGoneQuiet] = useState<
-    Array<{ id: string; case_number: string; missed_count: number; case_type: string }>
-  >([]);
+  const [goneQuiet, setGoneQuiet] = useState<GoneQuietItem[]>([]);
+  const [query, setQuery] = useState("");
 
   async function load() {
     const supabase = createClient();
@@ -49,9 +46,9 @@ export default function CounsellorCasesPage() {
     }
 
     try {
-      const quiet = await apiFetch<
-        Array<{ id: string; case_number: string; missed_count: number; case_type: string }>
-      >("/outreach/gone-quiet", { token: session.access_token });
+      const quiet = await apiFetch<GoneQuietItem[]>("/outreach/gone-quiet", {
+        token: session.access_token,
+      });
       setGoneQuiet(quiet);
     } catch {
       setGoneQuiet([]);
@@ -72,126 +69,128 @@ export default function CounsellorCasesPage() {
     return { critical, high, rising, escalating, total: cases.length };
   }, [cases]);
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return cases;
+    return cases.filter(
+      (c) =>
+        c.case_number?.toLowerCase().includes(q) ||
+        c.anonymised_label?.toLowerCase().includes(q) ||
+        c.case_type?.toLowerCase().includes(q)
+    );
+  }, [cases, query]);
+
+  async function logout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  }
+
   return (
-    <AppShell role="counsellor" userName={name}>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+    <div className="theme-command min-h-screen">
+      <header className="flex items-center justify-between border-b border-hairline px-6 py-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Case priority queue</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Who needs you most right now — sorted by distress, escalation risk, and case type.
-          </p>
+          <p className="label-caps">Counsellor command</p>
+          <h1 className="font-mono text-lg text-cyan">Priority queue</h1>
         </div>
-        {userId && token ? (
-          <IncomingCallPanel userId={userId} token={token} onRefresh={load} />
-        ) : null}
-      </div>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-muted-cmd">{name}</span>
+          {userId && token ? (
+            <IncomingCallPanel userId={userId} token={token} onRefresh={load} />
+          ) : null}
+          <button type="button" onClick={logout} className="text-xs text-faint underline">
+            Sign out
+          </button>
+        </div>
+      </header>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {[
-          { label: "Critical", value: kpis.critical },
-          { label: "High risk", value: kpis.high },
-          { label: "Rising trend", value: kpis.rising },
-          { label: "Escalation ≥70", value: kpis.escalating },
-          { label: "Assigned cases", value: kpis.total },
-        ].map((k) => (
-          <Card key={k.label}>
-            <CardContent className="pt-5">
-              <p className="text-3xl font-semibold tabular-nums">{k.value}</p>
-              <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {k.label}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {goneQuiet.length > 0 && (
-        <Card className="mb-6 border-violet-500/40 bg-violet-500/5">
-          <CardHeader>
-            <CardTitle className="text-base text-violet-200">Gone Quiet</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Missed scheduled outreach — disengagement is a clinical signal, not neutral silence.
+      <div className="mx-auto grid max-w-[1400px] gap-0 lg:grid-cols-[240px_1fr]">
+        <aside className="border-r border-hairline bg-elevated">
+          <div className="border-b border-hairline px-3 py-3">
+            <p className="label-caps text-violet">Gone Quiet</p>
+            <p className="mt-1 text-[11px] text-faint">
+              Disengagement is the highest-risk signal in the system.
             </p>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {goneQuiet.map((c) => (
-              <Link
-                key={c.id}
-                href={`/counselor/cases/${c.id}`}
-                className="flex items-center justify-between rounded border border-violet-500/20 px-3 py-2 text-sm hover:bg-violet-500/10"
-              >
-                <span>
-                  {c.case_number} · {c.case_type}
-                </span>
-                <span className="text-xs font-semibold">{c.missed_count} missed</span>
-              </Link>
+          </div>
+          <GoneQuietRail items={goneQuiet} />
+        </aside>
+
+        <main className="px-6 py-6">
+          <div className="mb-6 grid grid-cols-2 gap-px bg-hairline sm:grid-cols-5">
+            {[
+              { label: "Critical", value: kpis.critical },
+              { label: "High", value: kpis.high },
+              { label: "Rising", value: kpis.rising },
+              { label: "Esc ≥70", value: kpis.escalating },
+              { label: "Assigned", value: kpis.total },
+            ].map((k) => (
+              <div key={k.label} className="bg-elevated px-4 py-3">
+                <p className="font-mono text-2xl text-cyan">{k.value}</p>
+                <p className="label-caps mt-1">{k.label}</p>
+              </div>
             ))}
-          </CardContent>
-        </Card>
-      )}
+          </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Prioritised cases</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          {loading && <p className="text-sm text-muted-foreground">Loading queue…</p>}
-          {!loading && cases.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              No assigned cases yet. Ask an admin to assign victims to you.
+          <div className="mb-4 flex items-center gap-3">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search cases…  /"
+              className="w-full max-w-sm border border-hairline bg-raised px-3 py-2 font-mono text-sm text-ink outline-none focus:border-cyan"
+            />
+          </div>
+
+          {loading && <p className="text-sm text-muted-cmd">Loading queue…</p>}
+          {!loading && filtered.length === 0 && (
+            <p className="text-sm text-muted-cmd">
+              No assigned cases yet. Ask an admin to assign survivors to you.
             </p>
           )}
-          {cases.length > 0 && (
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead>
-                <tr className="border-b text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="pb-2 pr-3">Priority</th>
-                  <th className="pb-2 pr-3">Victim</th>
-                  <th className="pb-2 pr-3">Risk</th>
-                  <th className="pb-2 pr-3">Trend</th>
-                  <th className="pb-2 pr-3">Escalation</th>
-                  <th className="pb-2 pr-3">Stage</th>
-                  <th className="pb-2 pr-3">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cases.map((c) => (
-                  <tr key={c.id} className="border-b last:border-0 hover:bg-muted/40">
-                    <td className="py-3 pr-3 font-semibold tabular-nums">{c.priority_score ?? "—"}</td>
-                    <td className="py-3 pr-3">
-                      <Link
-                        href={`/counselor/cases/${c.id}`}
-                        className="font-medium text-primary hover:underline"
-                      >
-                        {c.anonymised_label ?? c.case_number}
-                      </Link>
-                      <p className="text-xs text-muted-foreground">
-                        {c.case_number} · {c.case_type}
-                      </p>
-                    </td>
-                    <td className="py-3 pr-3">
-                      <RiskBadge
-                        level={c.latest_score?.risk_level ?? "low"}
-                        score={c.latest_score?.score}
-                      />
-                    </td>
-                    <td className="py-3 pr-3">
-                      <TrendBadge trend={c.trend_direction} />
-                    </td>
-                    <td className="py-3 pr-3 tabular-nums">{c.escalation_risk_7d ?? "—"}</td>
-                    <td className="py-3 pr-3 capitalize">{c.status?.replace(/_/g, " ")}</td>
-                    <td className="py-3 pr-3 text-xs font-medium">{c.recommended_action ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          <p className="mt-4 text-[11px] text-muted-foreground">
-            Escalation risk is an MVP decision-support estimate (rules + LLM), not a clinically
-            validated forecast.
+
+          <ul className="divide-y divide-hairline border-y border-hairline">
+            {filtered.map((c) => (
+              <li key={c.id} className="flex h-8 items-center gap-4 px-1 text-sm hover:bg-raised">
+                <span className="w-10 shrink-0 font-mono text-faint">
+                  {c.priority_score ?? "—"}
+                </span>
+                <Link
+                  href={`/counselor/cases/${c.id}`}
+                  className="min-w-0 flex-1 truncate font-mono text-cyan hover:underline"
+                >
+                  {c.anonymised_label ?? c.case_number}
+                  <span className="ml-2 text-faint">
+                    {c.case_number} · {c.case_type}
+                  </span>
+                </Link>
+                <RiskBadge
+                  level={c.latest_score?.risk_level ?? "low"}
+                  score={c.latest_score?.score}
+                />
+                <TrendBadge trend={c.trend_direction} />
+                <span className="hidden w-10 font-mono text-xs text-muted-cmd sm:inline">
+                  {c.escalation_risk_7d ?? "—"}
+                </span>
+                {"attrition_risk" in c && (c as { attrition_risk?: number }).attrition_risk != null && (
+                  <span
+                    className="hidden w-8 font-mono text-xs text-violet sm:inline"
+                    title="Case attrition risk"
+                  >
+                    A{(c as { attrition_risk?: number }).attrition_risk}
+                  </span>
+                )}
+                <span className="hidden max-w-[140px] truncate text-xs text-faint md:inline">
+                  {c.recommended_action ?? "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <p className="mt-4 text-[11px] text-faint">
+            Escalation and attrition are decision-support estimates — not clinical diagnoses. Scores
+            are never shown to survivors.
           </p>
-        </CardContent>
-      </Card>
-    </AppShell>
+        </main>
+      </div>
+    </div>
   );
 }

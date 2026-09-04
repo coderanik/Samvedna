@@ -1,9 +1,14 @@
-# Samvedna — Mental Well-being Monitoring for Crime Victims
+# Samvedna — listening beyond words
 
-**Samvedna** (संवेदना — “empathy” in Sanskrit) is an AI-assisted **Dynamic Mental Health Monitoring** platform for **atrocity survivors and complainants** under the SC/ST (Prevention of Atrocities) Act — reached via NHAA 14566, Integrated Portal, chatbot, mobile, IVRS and helpline follow-ups. It supports continuous check-ins, triage scoring, escalation risk (MVP), counsellor prioritisation, and POA-aligned intervention recommendations for authorised professionals.
+**Samvedna** (संवेदना) is an AI-assisted **Dynamic Mental Health Monitoring** platform for
+**atrocity survivors and complainants** under the **SC/ST (Prevention of Atrocities) Act, 1989**,
+reached via NHAA 14566, the Integrated Portal, chatbot, mobile, IVRS and helpline follow-ups.
 
-> Samvedna is a **support tool**, not an emergency service.  
-> **Emergency:** dial **112** · **KIRAN Mental Health Helpline:** **1800-599-0019** (24×7)
+> Support tool for authorised professionals — **not** an emergency service and **not** a clinical diagnosis.  
+> **112** · **KIRAN 1800-599-0019** · **Tele-MANAS 14416** · **NHAA 14566**
+
+Every capability is labelled **LIVE**, **ARCHITECTED**, or **ROADMAP**. Simulated NHAA/Exotel
+connectors are never dressed as live government APIs.
 
 ---
 
@@ -92,6 +97,7 @@ See [`docs/PRESENTATION.md`](docs/PRESENTATION.md) for the audit summary, LIVE v
 
 1. `supabase/migrations/20260904000001_distress_intelligence.sql`
 2. `supabase/migrations/20260905000001_samvedna_v2.sql` (outreach, score_contributions, POA catalog)
+3. `supabase/migrations/20260905000003_victim_dashboard.sql` (instant calls, consultants, chat, exercises)
 
 ---
 
@@ -418,6 +424,7 @@ Run all commands from the `SAMVEDNA` folder.
 | `NEXT_PUBLIC_API_URL` | Where the website finds the backend (local: port 4000) |
 | `NEXT_PUBLIC_SOCKET_URL` | Real-time alerts connection (same as API locally) |
 | `EXOTEL_*` | Optional phone/SMS keys (India telephony) |
+| `TWILIO_*` | Optional Conversational Voice for victim instant agent calls |
 
 Full template: see `.env.example`.
 
@@ -460,6 +467,45 @@ You can run the full app **without Exotel** — chat and browser voice calls sti
 6. In **Exotel App Bazaar**, create an inbound flow with a **URL applet** pointing to:
 
    `https://YOUR-PUBLIC-URL/webhooks/exotel/exoml/inbound`
+
+---
+
+## Optional: Twilio Conversational Voice (victim instant agent)
+
+Powers **Talk to an Agent Now** on the victim dashboard — outbound phone call with Mann-Mitra speech gather loop, transcript → summary → distress scoring.
+
+1. Create a Twilio account and note **Account SID**, **Auth Token**, and a **Voice-capable From number**.
+2. Add to root `.env`:
+
+   ```env
+   TWILIO_ACCOUNT_SID=ACxxxx
+   TWILIO_AUTH_TOKEN=xxxx
+   TWILIO_FROM_NUMBER=+1xxxxxxxxxx
+   TWILIO_WEBHOOK_BASE_URL=https://YOUR-PUBLIC-URL
+   ```
+
+3. Expose the API publicly (Twilio cannot call `localhost`):
+
+   ```bash
+   ngrok http 4000
+   ```
+
+   Put the `https://….ngrok-free.app` URL in `TWILIO_WEBHOOK_BASE_URL` (no trailing slash).
+
+4. Confirm setup:
+
+   ```bash
+   curl http://localhost:4000/webhooks/twilio/config
+   ```
+
+5. Ensure the victim profile has a real `phone_number` (E.164 / Indian mobile). Dashboard uses `mode=auto` → Twilio when LIVE.
+
+6. Optional inbound: Twilio Console → Phone Number → Voice webhook →  
+   `POST https://YOUR-PUBLIC-URL/webhooks/twilio/voice`
+
+For local signature quirks only: `TWILIO_SKIP_SIGNATURE_VALIDATION=true` (never in production).
+
+Without Twilio, the dashboard still uses **LIVE** in-browser Mann-Mitra voice.
 
 ---
 

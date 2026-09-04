@@ -9,18 +9,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Heart } from "lucide-react";
+import { SamvednaMark } from "@/components/samvedna-logo";
 
 const PORTAL = process.env.NEXT_PUBLIC_PORTAL ?? "";
 const IS_ADMIN_PORTAL = PORTAL === "admin";
 const SHOW_ADMIN_HINT = process.env.NEXT_PUBLIC_SHOW_ADMIN_HINT === "1";
+const ADMIN_EMAIL_HINT = process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "admin@samvedna.demo";
+/** Dev-only hint — never ship a password string in client bundles for production. */
+const ADMIN_PASSWORD_HINT =
+  process.env.NODE_ENV === "development" && SHOW_ADMIN_HINT
+    ? process.env.NEXT_PUBLIC_ADMIN_PASSWORD_HINT ?? ""
+    : "";
 
-const FIXED_ADMIN_EMAIL = "admin@samvedna.demo";
-const FIXED_ADMIN_PASSWORD = "SamvednaAdmin@2024";
+const DEMO_ACCOUNTS =
+  process.env.NODE_ENV === "development"
+    ? ([
+        { label: "Victim", email: "victim1@samvedna.demo", password: "Samvedna@2024" },
+        { label: "Counsellor", email: "counsellor1@samvedna.demo", password: "Samvedna@2024" },
+        { label: "Official", email: "official@samvedna.demo", password: "Samvedna@2024" },
+        { label: "Admin", email: "admin@samvedna.demo", password: "SamvednaAdmin@2024" },
+      ] as const)
+    : [];
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState(IS_ADMIN_PORTAL ? FIXED_ADMIN_EMAIL : "");
+  const [email, setEmail] = useState(IS_ADMIN_PORTAL ? ADMIN_EMAIL_HINT : "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,7 +41,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (IS_ADMIN_PORTAL) {
-      setEmail(FIXED_ADMIN_EMAIL);
+      setEmail(ADMIN_EMAIL_HINT);
     }
   }, []);
 
@@ -105,27 +118,31 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Heart className="h-6 w-6 text-primary" />
+          <div className="mx-auto mb-3 flex items-center justify-center">
+            <SamvednaMark size={54} animated />
           </div>
-          <CardTitle>{IS_ADMIN_PORTAL ? "Samvedna Admin" : "Samvedna"}</CardTitle>
-          <CardDescription>
+          <CardTitle className="font-display text-2xl tracking-wide">{IS_ADMIN_PORTAL ? "Samvedna Admin" : "Samvedna"}</CardTitle>
+          <CardDescription className="text-xs">
             {IS_ADMIN_PORTAL
               ? "System administration portal"
-              : "Listening beyond words · शब्दों से परे"}
+              : "संवेदना · listening beyond words · शब्दों से परे"}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {IS_ADMIN_PORTAL && SHOW_ADMIN_HINT && (
             <div className="mb-4 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-left text-xs text-muted-foreground">
-              <p className="font-semibold text-foreground">Fixed admin login</p>
+              <p className="font-semibold text-foreground">Fixed admin login (dev hint)</p>
               <p>
-                Email: <span className="font-mono text-foreground">{FIXED_ADMIN_EMAIL}</span>
+                Email: <span className="font-mono text-foreground">{ADMIN_EMAIL_HINT}</span>
               </p>
-              <p>
-                Password:{" "}
-                <span className="font-mono text-foreground">{FIXED_ADMIN_PASSWORD}</span>
-              </p>
+              {ADMIN_PASSWORD_HINT ? (
+                <p>
+                  Password:{" "}
+                  <span className="font-mono text-foreground">{ADMIN_PASSWORD_HINT}</span>
+                </p>
+              ) : (
+                <p>Password is in your ops notes / ensure-admin script — not embedded here.</p>
+              )}
             </div>
           )}
           {IS_ADMIN_PORTAL && !SHOW_ADMIN_HINT && (
@@ -161,6 +178,34 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
+
+          {!IS_ADMIN_PORTAL && DEMO_ACCOUNTS.length > 0 && (
+            <div className="mt-4 rounded-md border border-dashed border-border bg-muted/40 px-3 py-3">
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Demo accounts
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {DEMO_ACCOUNTS.map((account) => (
+                  <button
+                    key={account.email}
+                    type="button"
+                    className="rounded-md border border-border bg-background px-2.5 py-1 text-xs text-foreground transition hover:border-primary/40 hover:bg-primary/5"
+                    onClick={() => {
+                      setEmail(account.email);
+                      setPassword(account.password);
+                      setError("");
+                    }}
+                  >
+                    {account.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Fills the form — then click Sign in. Password for most roles:{" "}
+                <span className="font-mono">Samvedna@2024</span>
+              </p>
+            </div>
+          )}
 
           {!IS_ADMIN_PORTAL && (
             <>

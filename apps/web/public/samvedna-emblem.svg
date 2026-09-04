@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Sanctuary Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a1f1d" />
+      <stop offset="50%" stop-color="#0e3833" />
+      <stop offset="100%" stop-color="#14211f" />
+    </linearGradient>
+
+    <!-- Warm Gold / Terracotta Empathy Gradient -->
+    <linearGradient id="terracottaGold" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#c97b5a" />
+      <stop offset="45%" stop-color="#e29578" />
+      <stop offset="75%" stop-color="#f4a261" />
+      <stop offset="100%" stop-color="#ffd166" />
+    </linearGradient>
+
+    <!-- Sanctuary Teal / Healing Jade Gradient -->
+    <linearGradient id="tealJade" x1="0%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#0b524b" />
+      <stop offset="35%" stop-color="#0f6f65" />
+      <stop offset="70%" stop-color="#2a9d8f" />
+      <stop offset="100%" stop-color="#52b788" />
+    </linearGradient>
+
+    <!-- Left Wing Gradient -->
+    <linearGradient id="leftWingGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#09433d" />
+      <stop offset="50%" stop-color="#127c71" />
+      <stop offset="100%" stop-color="#48cae4" />
+    </linearGradient>
+
+    <!-- Right Wing Gradient -->
+    <linearGradient id="rightWingGrad" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#09433d" />
+      <stop offset="50%" stop-color="#2a9d8f" />
+      <stop offset="100%" stop-color="#83c5be" />
+    </linearGradient>
+
+    <!-- Soft Diffused Radial Glow -->
+    <radialGradient id="centerAura" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#2ec4b6" stop-opacity="0.32" />
+      <stop offset="40%" stop-color="#0f6f65" stop-opacity="0.18" />
+      <stop offset="80%" stop-color="#0a1f1d" stop-opacity="0" />
+    </radialGradient>
+
+    <radialGradient id="binduGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff" stop-opacity="1" />
+      <stop offset="30%" stop-color="#ffd166" stop-opacity="0.9" />
+      <stop offset="60%" stop-color="#f4a261" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#f4a261" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Subtle Drop Shadow -->
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000" flood-opacity="0.45" />
+    </filter>
+    
+    <filter id="glowFilter" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Container Shield / Rounded Squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+  <!-- Outer Fine Border Rim -->
+  <rect width="508" height="508" x="2" y="2" rx="110" fill="none" stroke="url(#terracottaGold)" stroke-width="1.5" stroke-opacity="0.25" />
+
+  <!-- Ambient Concentric Listening Horizon Rings -->
+  <circle cx="256" cy="256" r="196" fill="none" stroke="#2a9d8f" stroke-width="1" stroke-opacity="0.12" stroke-dasharray="4 8" />
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#e29578" stroke-width="1" stroke-opacity="0.15" stroke-dasharray="2 6" />
+
+  <!-- Ambient Light Pulse -->
+  <circle cx="256" cy="250" r="140" fill="url(#centerAura)" />
+
+  <!-- MAIN EMBLEM GROUP (With Shadow) -->
+  <g filter="url(#softShadow)">
+
+    <!-- ==================== SOUND / LISTENING RESONANCE WAVES ==================== -->
+    <!-- Wave 3 (Outer subtle listening ripple) -->
+    <path d="M 184,188 C 204,164 228,152 256,152 C 284,152 308,164 328,188" 
+          fill="none" stroke="url(#terracottaGold)" stroke-width="2.5" stroke-linecap="round" stroke-opacity="0.45" />
+
+    <!-- Wave 2 (Middle resonance arc) -->
+    <path d="M 198,206 C 214,188 234,178 256,178 C 278,178 298,188 314,206" 
+          fill="none" stroke="url(#tealJade)" stroke-width="3" stroke-linecap="round" stroke-opacity="0.75" />
+
+    <!-- Wave 1 (Inner listening cadence) -->
+    <path d="M 214,224 C 226,210 240,202 256,202 C 272,202 286,210 298,224" 
+          fill="none" stroke="url(#terracottaGold)" stroke-width="3.5" stroke-linecap="round" stroke-opacity="0.95" />
+
+
+    <!-- ==================== EMBRACING HANDS / SANCTUARY WINGS ==================== -->
+    <!-- Left Caring Hand / Wing -->
+    <path d="M 256,416 C 206,416 142,382 116,328 C 92,278 94,212 122,158 C 132,138 148,124 168,118 C 178,115 188,121 190,131 C 192,141 187,151 177,156 C 158,166 146,182 138,202 C 122,240 124,288 150,324 C 174,358 214,380 256,380 Z"
+          fill="url(#leftWingGrad)" />
+
+    <!-- Right Caring Hand / Wing -->
+    <path d="M 256,416 C 306,416 370,382 396,328 C 420,278 418,212 390,158 C 380,138 364,124 344,118 C 334,115 324,121 322,131 C 320,141 325,151 335,156 C 354,166 366,182 374,202 C 390,240 388,288 362,324 C 338,358 298,380 256,380 Z"
+          fill="url(#rightWingGrad)" />
+
+
+    <!-- ==================== INNER BLOOM / LOTUS EMBRACE ==================== -->
+    <!-- Left Lotus Petal (Flowing inwards) -->
+    <path d="M 256,370 C 224,352 182,316 174,266 C 168,228 184,196 206,182 C 216,176 226,180 228,190 C 230,198 226,206 218,212 C 204,222 196,242 198,266 C 202,298 230,328 256,344 Z"
+          fill="url(#tealJade)" />
+
+    <!-- Right Lotus Petal (Flowing inwards) -->
+    <path d="M 256,370 C 288,352 330,316 338,266 C 344,228 328,196 306,182 C 296,176 286,180 284,190 C 282,198 286,206 294,212 C 308,222 316,242 314,266 C 310,298 282,328 256,344 Z"
+          fill="url(#tealJade)" />
+
+
+    <!-- ==================== CENTRAL HEART OF EMPATHY (संवेदना) ==================== -->
+    <!-- Sacred Heart Petal Vessel -->
+    <path d="M 256,346 C 242,330 208,296 208,260 C 208,232 228,214 250,214 C 253,214 256,215 256,215 C 256,215 259,214 262,214 C 284,214 304,232 304,260 C 304,296 270,330 256,346 Z"
+          fill="url(#terracottaGold)" />
+
+    <!-- Center Radiant Bloom Flame (Aspiration & Healing) -->
+    <path d="M 256,150 C 245,178 240,204 246,226 C 248,232 253,236 256,236 C 259,236 264,232 266,226 C 272,204 267,178 256,150 Z"
+          fill="url(#terracottaGold)" />
+
+
+    <!-- ==================== BINDU (The Sacred Listening Dot) ==================== -->
+    <!-- Anusvara / Dot of Consciousness & Attentive Listening -->
+    <circle cx="256" cy="116" r="18" fill="url(#binduGlow)" />
+    <circle cx="256" cy="116" r="9" fill="#ffffff" />
+    <circle cx="256" cy="116" r="5" fill="#ffd166" />
+
+  </g>
+</svg>

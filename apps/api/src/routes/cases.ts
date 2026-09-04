@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireRole } from "../middleware/auth";
 import { supabaseAdmin } from "../lib/supabase";
-import type { UserRole } from "@samvedna/shared-types";
+import { canAccessCase } from "../lib/case-access";
+import { auditMiddleware } from "../lib/audit";
 
 export function casesRouter() {
   const router = Router();
@@ -52,48 +53,12 @@ export function casesRouter() {
     }
   });
 
-  router.get("/:id/scores/:scoreId/explain", requireAuth, async (req, res, next) => {
-    try {
-      const { data: caseRow } = await supabaseAdmin
-        .from("cases")
-        .select("*")
-        .eq("id", req.params.id)
-        .single();
-      if (!caseRow || !canAccessCase(req.user!.role, req.user!.id, caseRow)) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-      if (req.user!.role === "victim") {
-        return res.status(403).json({ error: "Explanations are for care teams only" });
-      }
+  // GET /cases/:caseId/scores/:scoreId/explain is served by explainRouter,
+  // which is mounted on /cases ahead of this router.
 
-      const { data: score } = await supabaseAdmin
-        .from("distress_scores")
-        .select("*")
-        .eq("id", req.params.scoreId)
-        .eq("case_id", req.params.id)
-        .single();
-      if (!score) return res.status(404).json({ error: "Score not found" });
+  const timelineAudit = auditMiddleware("case_timeline_viewed", "case");
 
-      const { data: contributions } = await supabaseAdmin
-        .from("score_contributions")
-        .select("*")
-        .eq("distress_score_id", score.id)
-        .order("contribution", { ascending: false });
-
-      res.json({
-        score,
-        contributions: contributions ?? [],
-        arithmetic_note:
-          "This explanation is the same weighted composite arithmetic that produced the score — not a second model rationalising the first.",
-        disclaimer:
-          "Triage decision-support for authorised professionals. Not a clinical diagnosis.",
-      });
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  router.get("/:id/timeline", requireAuth, async (req, res, next) => {
+  router.get("/:id/timeline", requireAuth, timelineAudit, async (req, res, next) => {
     try {
       const caseId = req.params.id;
       const user = req.user!;
@@ -228,65 +193,58 @@ export function casesRouter() {
     }
   });
 
-  router.patch("/:id/support/:supportId", requireAuth, async (req, res, next) => {
-    try {
-      if (!["counsellor", "official", "admin"].includes(req.user!.role)) {
-        return res.status(403).json({ error: "Insufficient permissions" });
-      }
-      const statusSchema = z.object({
-        status: z.enum(["suggested", "in_progress", "completed"]),
-      });
-      const body = statusSchema.parse(req.body);
-
-      const { data: caseRow } = await supabaseAdmin
-        .from("cases")
-        .select("assigned_counsellor_id, assigned_official_id")
-        .eq("id", req.params.id)
-        .single();
-      if (!caseRow) return res.status(404).json({ error: "Case not found" });
-      if (
-        req.user!.role === "counsellor" &&
-        caseRow.assigned_counsellor_id !== req.user!.id
-      ) {
-        return res.status(403).json({ error: "Not assigned to this case" });
-      }
-      if (
-        req.user!.role === "official" &&
-        caseRow.assigned_official_id !== req.user!.id
-      ) {
-        return res.status(403).json({ error: "Not assigned to this case" });
-      }
-
-      const { data, error } = await supabaseAdmin
-        .from("support_recommendations")
-        .update({ status: body.status })
-        .eq("id", req.params.supportId)
-        .eq("case_id", req.params.id)
-        .select()
-        .single();
-
-      if (error) return res.status(500).json({ error: "Failed to update recommendation" });
-      res.json(data);
-    } catch (err) {
-      next(err);
-    }
+  const supportStatusSchema = z.object({
+    status: z.enum(["suggested", "in_progress", "completed"]),
   });
 
-  return router;
-}
+  router.patch(
+    "/:id/support/:supportId",
+    requireAuth,
+    requireRole("counsellor", "official", "admin"),
+    auditMiddleware("support_recommendation_updated", "support_recommendation"),
+    async (req, res, next) => {
+      try {
+        const body = supportStatusSchema.parse(req.body);
 
-function canAccessCase(
-  role: UserRole,
-  userId: string,
-  caseRow: {
-    victim_id: string;
-    assigned_counsellor_id: string | null;
-    assigned_official_id: string | null;
-  }
-): boolean {
-  if (role === "admin") return true;
-  if (role === "victim") return caseRow.victim_id === userId;
-  if (role === "counsellor") return caseRow.assigned_counsellor_id === userId;
-  if (role === "official") return caseRow.assigned_official_id === userId;
-  return false;
+        const { data: caseRow } = await supabaseAdmin
+          .from("cases")
+          .select("victim_id, assigned_counsellor_id, assigned_official_id")
+          .eq("id", req.params.id)
+          .maybeSingle();
+        if (!caseRow) return res.status(404).json({ error: "Case not found" });
+        if (!canAccessCase(req.user!.role, req.user!.id, caseRow)) {
+          return res.status(403).json({ error: "Not assigned to this case" });
+        }
+
+        const updates: Record<string, unknown> = { status: body.status };
+        // A completed action stops the statutory SLA clock.
+        if (body.status === "completed") updates.sla_breached = false;
+
+        let { data, error } = await supabaseAdmin
+          .from("support_recommendations")
+          .update(updates)
+          .eq("id", req.params.supportId)
+          .eq("case_id", req.params.id)
+          .select()
+          .single();
+
+        if (error && "sla_breached" in updates) {
+          ({ data, error } = await supabaseAdmin
+            .from("support_recommendations")
+            .update({ status: body.status })
+            .eq("id", req.params.supportId)
+            .eq("case_id", req.params.id)
+            .select()
+            .single());
+        }
+
+        if (error) return res.status(500).json({ error: "Failed to update recommendation" });
+        res.json(data);
+      } catch (err) {
+        next(err);
+      }
+    }
+  );
+
+  return router;
 }

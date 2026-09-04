@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { homeForRole, resolveUserRole } from "@/lib/auth";
 import type { UserRole } from "@samvedna/shared-types";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/onboard", "/auth"];
+const PUBLIC_PATHS = ["/login", "/signup", "/onboard", "/auth", "/brand"];
 const AUTH_PATHS = ["/login", "/signup"];
 
 export async function updateSession(request: NextRequest) {
@@ -46,11 +46,15 @@ export async function updateSession(request: NextRequest) {
   let role: UserRole | null = null;
 
   if (user) {
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
+    // RLS recursion can 500 on profiles — fall back to JWT metadata so routes still work
+    if (profileError) {
+      console.warn("[middleware] profiles select failed:", profileError.message);
+    }
     role = resolveUserRole(user, profile);
   }
 

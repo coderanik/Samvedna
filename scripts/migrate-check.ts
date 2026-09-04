@@ -8,7 +8,6 @@
 
 import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
-import { readFileSync } from "fs";
 import { resolve } from "path";
 
 dotenv.config({ path: resolve(__dirname, "../.env") });
@@ -26,24 +25,32 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
 async function main() {
-  const { error } = await supabase.from("call_sessions").select("id").limit(1);
+  const checks: Array<{ table: string; label: string }> = [
+    { table: "call_sessions", label: "migration 002 (call_sessions)" },
+    { table: "instant_calls", label: "victim dashboard (instant_calls)" },
+    { table: "consultants", label: "victim dashboard (consultants)" },
+    { table: "exercise_recommendations", label: "victim dashboard (exercises)" },
+    { table: "chat_messages", label: "victim dashboard (chat_messages)" },
+  ];
 
-  if (!error) {
-    console.log("✓ call_sessions table exists — migration 002 is applied.");
-    return;
+  let failed = false;
+  for (const c of checks) {
+    const { error } = await supabase.from(c.table).select("id").limit(1);
+    if (!error) {
+      console.log(`✓ ${c.table} — ${c.label}`);
+      continue;
+    }
+    failed = true;
+    console.error(`✗ ${c.table} missing (${c.label}): ${error.message}`);
   }
 
-  if (error.code === "42P01" || error.message.includes("call_sessions")) {
-    const sqlPath = resolve(__dirname, "../supabase/migrations/20240829000002_call_sessions.sql");
-    console.error("✗ call_sessions table missing.");
-    console.error("\nApply migration 002 in Supabase → SQL Editor:\n");
-    console.error(`  File: ${sqlPath}\n`);
-    console.error(readFileSync(sqlPath, "utf8"));
+  if (failed) {
+    console.error(
+      "\nApply pending SQL in Supabase → SQL Editor, especially:\n" +
+        "  supabase/migrations/20260905000003_victim_dashboard.sql\n"
+    );
     process.exit(1);
   }
-
-  console.error("Unexpected error checking migrations:", error.message);
-  process.exit(1);
 }
 
 main();

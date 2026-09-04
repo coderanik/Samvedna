@@ -16,7 +16,15 @@ import { chatRouter } from "./routes/chat";
 import { callsRouter } from "./routes/calls";
 import { intakeRouter } from "./routes/intake";
 import { outreachRouter } from "./routes/outreach";
-import { processDueOutreach } from "./lib/cadence-engine";
+import { auditRouter } from "./routes/audit";
+import { consentRouter } from "./routes/consent";
+import { explainRouter } from "./routes/explain";
+import { victimDashboardRouter } from "./routes/victim-dashboard";
+import { instantCallsRouter } from "./routes/instant-calls";
+import { consultantRouter } from "./routes/consultant";
+import { exercisesRouter } from "./routes/exercises";
+import { victimProfileRouter } from "./routes/victim-profile";
+import { startCadenceTick } from "./lib/cadence-engine";
 import { supabaseAdmin } from "./lib/supabase";
 
 const PORT = parseInt(process.env.PORT ?? "4000", 10);
@@ -45,15 +53,24 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/checkins", checkinsRouter(io));
-app.use("/chat", chatRouter());
+app.use("/chat", chatRouter(io));
 app.use("/calls", callsRouter(io));
+app.use("/victim/dashboard", victimDashboardRouter());
+app.use("/victim/instant-calls", instantCallsRouter(io));
+app.use("/victim/consultant", consultantRouter());
+app.use("/victim/exercises", exercisesRouter());
+app.use("/victim/profile", victimProfileRouter());
+// Mounted ahead of casesRouter so it owns /cases/:caseId/scores/:scoreId/explain.
+app.use("/cases", explainRouter());
 app.use("/cases", casesRouter());
-app.use("/alerts", alertsRouter());
+app.use("/alerts", alertsRouter(io));
 app.use("/dashboard", dashboardRouter());
 app.use("/webhooks", webhooksRouter(io));
-app.use("/admin", adminRouter());
+app.use("/admin", adminRouter(io));
 app.use("/intake", intakeRouter(io));
-app.use("/outreach", outreachRouter());
+app.use("/outreach", outreachRouter(io));
+app.use("/audit", auditRouter());
+app.use("/consent", consentRouter());
 
 app.use(errorHandler);
 
@@ -79,9 +96,7 @@ httpServer.listen(PORT, () => {
   console.log(`Samvedna API running on http://localhost:${PORT}`);
   console.log(`Socket.io CORS origins: ${CORS_ORIGINS.join(", ")}`);
   // Care cadence tick — process due / missed outreach every 60s
-  setInterval(() => {
-    processDueOutreach().catch((err) => console.warn("[outreach tick]", err));
-  }, 60_000);
+  startCadenceTick(io, 60_000);
 });
 
 export { io, supabaseAdmin };

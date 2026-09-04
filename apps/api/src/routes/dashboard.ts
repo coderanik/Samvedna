@@ -5,7 +5,198 @@ import {
   computeDistressIntelligence,
   computePriorityScore,
 } from "../lib/distress-intelligence";
-import type { RiskLevel, TrendDirection } from "@samvedna/shared-types";
+import { getGoneQuietCases } from "../lib/cadence-engine";
+import { accessibleCaseIds } from "../lib/case-access";
+import { safeQuery } from "../lib/db-safe";
+import type { CaseStatus, RiskLevel, TrendDirection } from "@samvedna/shared-types";
+
+const NO_CASE = "00000000-0000-0000-0000-000000000000";
+
+/** The POA Act journey, in order. Used by the stage funnel. */
+const STAGE_ORDER: CaseStatus[] = [
+  "complaint_registration",
+  "investigation",
+  "trial",
+  "compensation",
+  "rehabilitation",
+  "protection_followup",
+  "closed",
+];
+
+const ANOMALY_WINDOW_DAYS = 21;
+const ANOMALY_Z_THRESHOLD = 1.5;
+
+export interface DistrictAnomaly {
+  district: string;
+  state: string;
+  z_score: number;
+  slope: number;
+  case_count: number;
+  mean_score: number;
+}
+
+/** Least-squares slope of y over x. Returns null when x never varies. */
+function linearSlope(points: Array<{ x: number; y: number }>): number | null {
+  if (points.length < 3) return null;
+  const n = points.length;
+  const meanX = points.reduce((a, p) => a + p.x, 0) / n;
+  const meanY = points.reduce((a, p) => a + p.y, 0) / n;
+  const varianceX = points.reduce((a, p) => a + (p.x - meanX) ** 2, 0);
+  if (varianceX === 0) return null;
+  const covariance = points.reduce((a, p) => a + (p.x - meanX) * (p.y - meanY), 0);
+  return covariance / varianceX;
+}
+
+/**
+ * Districts whose mean distress is climbing unusually fast.
+ *
+ * The slope is per-district but the z-score is always against the national
+ * distribution of district slopes — a district only counts as an anomaly
+ * relative to the rest of the country, not to its own past.
+ */
+async function computeDistrictAnomalies(): Promise<DistrictAnomaly[]> {
+  const { data: cases } = await safeQuery<
+    Array<{ id: string; district: string | null; state: string | null }>
+  >("cases:anomaly_scope", () => supabaseAdmin.from("cases").select("id, district, state"));
+
+  if (!cases?.length) return [];
+
+  const since = new Date(Date.now() - ANOMALY_WINDOW_DAYS * 86_400_000);
+  const { data: scores } = await safeQuery<
+    Array<{ case_id: string; score: number; created_at: string }>
+  >("distress_scores:anomaly_window", () =>
+    supabaseAdmin
+      .from("distress_scores")
+      .select("case_id, score, created_at")
+      .gte("created_at", since.toISOString())
+  );
+
+  if (!scores?.length) return [];
+
+  const caseMeta = new Map(cases.map((c) => [c.id, c] as const));
+
+  const byDistrict = new Map<
+    string,
+    { state: string; caseIds: Set<string>; points: Array<{ x: number; y: number }> }
+  >();
+
+  for (const s of scores) {
+    const meta = caseMeta.get(s.case_id);
+    if (!meta?.district) continue;
+    const key = `${meta.state ?? ""}||${meta.district}`;
+    const entry =
+      byDistrict.get(key) ??
+      { state: meta.state ?? "", caseIds: new Set<string>(), points: [] };
+    entry.caseIds.add(s.case_id);
+    entry.points.push({
+      x: (new Date(s.created_at).getTime() - since.getTime()) / 86_400_000,
+      y: s.score,
+    });
+    byDistrict.set(key, entry);
+  }
+
+  const districts: DistrictAnomaly[] = [];
+  for (const [key, entry] of byDistrict) {
+    const slope = linearSlope(entry.points);
+    if (slope == null) continue;
+    districts.push({
+      district: key.split("||")[1],
+      state: entry.state,
+      slope: Math.round(slope * 100) / 100,
+      z_score: 0,
+      case_count: entry.caseIds.size,
+      mean_score: Math.round(entry.points.reduce((a, p) => a + p.y, 0) / entry.points.length),
+    });
+  }
+
+  // A z-score needs a distribution to sit in; two districts is not one.
+  if (districts.length < 3) return [];
+
+  const slopes = districts.map((d) => d.slope);
+  const meanSlope = slopes.reduce((a, b) => a + b, 0) / slopes.length;
+  const sd = Math.sqrt(
+    slopes.reduce((a, s) => a + (s - meanSlope) ** 2, 0) / (slopes.length - 1)
+  );
+  if (sd === 0) return [];
+
+  return districts
+    .map((d) => ({ ...d, z_score: Math.round(((d.slope - meanSlope) / sd) * 100) / 100 }))
+    .filter((d) => d.z_score >= ANOMALY_Z_THRESHOLD)
+    .sort((a, b) => b.z_score - a.z_score);
+}
+
+interface SlaBreachRow {
+  id: string;
+  case_id: string;
+  type: string;
+  description: string;
+  status: string;
+  catalog_code: string | null;
+  statutory_basis: string | null;
+  responsible_authority: string | null;
+  sla_hours: number | null;
+  due_at: string | null;
+  created_at: string;
+}
+
+async function fetchSlaBreaches(caseIds: string[] | null): Promise<SlaBreachRow[]> {
+  const nowIso = new Date().toISOString();
+
+  const { data, degraded } = await safeQuery<SlaBreachRow[]>(
+    "support_recommendations:sla_breaches",
+    () => {
+      let query = supabaseAdmin
+        .from("support_recommendations")
+        .select(
+          "id, case_id, type, description, status, catalog_code, statutory_basis, responsible_authority, sla_hours, due_at, created_at"
+        )
+        .neq("status", "completed")
+        .lt("due_at", nowIso)
+        .order("due_at", { ascending: true })
+        .limit(200);
+      if (caseIds) {
+        query = query.in("case_id", caseIds.length ? caseIds : [NO_CASE]);
+      }
+      return query;
+    }
+  );
+
+  if (degraded) return [];
+  return data ?? [];
+}
+
+/** Outreach response rate over the last 30 days: answered ÷ (answered + missed). */
+async function fetchEngagementRate(
+  caseIds: string[] | null
+): Promise<{ rate: number | null; responded: number; missed: number }> {
+  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+
+  const { data, degraded } = await safeQuery<Array<{ status: string }>>(
+    "outreach_schedule:engagement_rate",
+    () => {
+      let query = supabaseAdmin
+        .from("outreach_schedule")
+        .select("status")
+        .in("status", ["responded", "missed"])
+        .gte("scheduled_for", since);
+      if (caseIds) {
+        query = query.in("case_id", caseIds.length ? caseIds : [NO_CASE]);
+      }
+      return query;
+    }
+  );
+
+  if (degraded || !data) return { rate: null, responded: 0, missed: 0 };
+
+  const responded = data.filter((r) => r.status === "responded").length;
+  const missed = data.filter((r) => r.status === "missed").length;
+  const total = responded + missed;
+  return {
+    rate: total ? Math.round((responded / total) * 100) / 100 : null,
+    responded,
+    missed,
+  };
+}
 
 export function dashboardRouter() {
   const router = Router();
@@ -140,6 +331,24 @@ export function dashboardRouter() {
               (a.escalation_risk_7d ?? a.current_score)
           );
 
+        const scopedCaseIds =
+          req.user!.role === "official" ? caseIds : await accessibleCaseIds(req.user!.role, req.user!.id);
+
+        const [slaBreachRows, engagement, goneQuiet, allAnomalies] = await Promise.all([
+          fetchSlaBreaches(scopedCaseIds),
+          fetchEngagementRate(scopedCaseIds),
+          getGoneQuietCases(scopedCaseIds),
+          computeDistrictAnomalies(),
+        ]);
+
+        // Anomalies are computed nationally so the z-score is meaningful, then
+        // narrowed to the districts this caller actually holds cases in.
+        const visibleDistricts = new Set((cases ?? []).map((c) => c.district));
+        const district_anomalies =
+          req.user!.role === "admin" && scope === "national"
+            ? allAnomalies
+            : allAnomalies.filter((a) => visibleDistricts.has(a.district));
+
         res.json({
           total_cases: cases?.length ?? 0,
           total_beneficiaries: victimIds.length,
@@ -158,6 +367,16 @@ export function dashboardRouter() {
           open_alerts: openAlerts ?? 0,
           high_risk_cases: highRiskCases,
           scope,
+          sla_breaches: slaBreachRows.length,
+          engagement_rate: engagement.rate,
+          engagement_basis: {
+            responded: engagement.responded,
+            missed: engagement.missed,
+            window_days: 30,
+          },
+          gone_quiet_count: goneQuiet.length,
+          district_anomalies,
+          anomaly_method: `Least-squares slope of mean distress over the last ${ANOMALY_WINDOW_DAYS} days per district, z-scored against the national distribution of district slopes; reported at z ≥ ${ANOMALY_Z_THRESHOLD}.`,
         });
       } catch (err) {
         next(err);
@@ -201,6 +420,11 @@ export function dashboardRouter() {
           list.push(s);
           byCase.set(s.case_id, list);
         }
+
+        // Fetch gone_quiet cases for hint annotation
+        const scopedIds = req.user!.role === "admin" ? null : caseIds;
+        const goneQuiet = await getGoneQuietCases(scopedIds);
+        const goneQuietSet = new Set(goneQuiet.map((g) => g.id));
 
         const enriched = (cases ?? []).map((c) => {
           const list = byCase.get(c.id) ?? [];
@@ -251,6 +475,8 @@ export function dashboardRouter() {
             priority_score,
             trend_direction: trend,
             escalation_risk_7d: esc,
+            attrition_risk: c.attrition_risk ?? null,
+            gone_quiet: goneQuietSet.has(c.id),
             hours_since_interaction: hours != null ? Math.round(hours) : null,
             recommended_action,
             anonymised_label: anonymise(victim?.full_name ?? c.case_number),
@@ -259,6 +485,106 @@ export function dashboardRouter() {
 
         enriched.sort((a, b) => b.priority_score - a.priority_score);
         res.json(enriched);
+      } catch (err) {
+        next(err);
+      }
+    }
+  );
+
+  /** Statutory entitlements whose SLA clock has run out while still open. */
+  router.get(
+    "/sla-breaches",
+    requireAuth,
+    requireRole("counsellor", "official", "admin"),
+    async (req, res, next) => {
+      try {
+        const caseIds = await accessibleCaseIds(req.user!.role, req.user!.id);
+        const rows = await fetchSlaBreaches(caseIds);
+
+        const { data: caseRows } = await safeQuery<
+          Array<{ id: string; case_number: string; district: string | null; state: string | null }>
+        >("cases:sla_breach_labels", () =>
+          supabaseAdmin
+            .from("cases")
+            .select("id, case_number, district, state")
+            .in("id", rows.length ? [...new Set(rows.map((r) => r.case_id))] : [NO_CASE])
+        );
+
+        const caseMap = new Map((caseRows ?? []).map((c) => [c.id, c] as const));
+        const now = Date.now();
+
+        res.json({
+          total: rows.length,
+          breaches: rows.map((r) => ({
+            ...r,
+            case_number: caseMap.get(r.case_id)?.case_number ?? null,
+            district: caseMap.get(r.case_id)?.district ?? null,
+            state: caseMap.get(r.case_id)?.state ?? null,
+            hours_overdue: r.due_at
+              ? Math.round((now - new Date(r.due_at).getTime()) / 36e5)
+              : null,
+          })),
+        });
+      } catch (err) {
+        next(err);
+      }
+    }
+  );
+
+  /** Mean distress and case count at each stage of the POA Act journey. */
+  router.get(
+    "/stage-funnel",
+    requireAuth,
+    requireRole("counsellor", "official", "admin"),
+    async (req, res, next) => {
+      try {
+        const scopedIds = await accessibleCaseIds(req.user!.role, req.user!.id);
+
+        const { data: cases } = await safeQuery<Array<{ id: string; status: string }>>(
+          "cases:stage_funnel",
+          () => {
+            let query = supabaseAdmin.from("cases").select("id, status");
+            if (scopedIds) {
+              query = query.in("id", scopedIds.length ? scopedIds : [NO_CASE]);
+            }
+            return query;
+          }
+        );
+
+        const caseIds = (cases ?? []).map((c) => c.id);
+        const { data: scores } = await safeQuery<
+          Array<{ case_id: string; score: number; created_at: string }>
+        >("distress_scores:stage_funnel", () =>
+          supabaseAdmin
+            .from("distress_scores")
+            .select("case_id, score, created_at")
+            .in("case_id", caseIds.length ? caseIds : [NO_CASE])
+            .order("created_at", { ascending: false })
+        );
+
+        // One score per case: the latest, so a chatty case doesn't skew a stage.
+        const latestByCase = new Map<string, number>();
+        for (const s of scores ?? []) {
+          if (!latestByCase.has(s.case_id)) latestByCase.set(s.case_id, s.score);
+        }
+
+        const funnel = STAGE_ORDER.map((stage) => {
+          const stageCases = (cases ?? []).filter((c) => c.status === stage);
+          const stageScores = stageCases
+            .map((c) => latestByCase.get(c.id))
+            .filter((s): s is number => s != null);
+
+          return {
+            case_status: stage,
+            case_count: stageCases.length,
+            scored_case_count: stageScores.length,
+            mean_distress: stageScores.length
+              ? Math.round(stageScores.reduce((a, b) => a + b, 0) / stageScores.length)
+              : null,
+          };
+        });
+
+        res.json({ funnel, order: STAGE_ORDER });
       } catch (err) {
         next(err);
       }

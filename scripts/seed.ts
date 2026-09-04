@@ -61,6 +61,13 @@ const USERS: SeedUser[] = [
     phone_number: "+919876543210",
   },
   {
+    email: "official2@samvedna.demo",
+    role: "official",
+    full_name: "Sangeeta Menon (District Magistrate Office)",
+    preferred_language: "en",
+    phone_number: "+919876543215",
+  },
+  {
     email: "counsellor1@samvedna.demo",
     role: "counsellor",
     full_name: "Dr. Priya Sharma",
@@ -73,6 +80,13 @@ const USERS: SeedUser[] = [
     full_name: "Dr. Ananya Iyer",
     preferred_language: "ta",
     phone_number: "+919876543212",
+  },
+  {
+    email: "counsellor3@samvedna.demo",
+    role: "counsellor",
+    full_name: "Dr. Kabir Deshmukh",
+    preferred_language: "mr",
+    phone_number: "+919876543213",
   },
   {
     email: "victim1@samvedna.demo",
@@ -102,24 +116,44 @@ const USERS: SeedUser[] = [
     preferred_language: "en",
     phone_number: "+919800000004",
   },
+  {
+    email: "victim5@samvedna.demo",
+    role: "victim",
+    full_name: "Ramesh Kamble",
+    preferred_language: "mr",
+    phone_number: "+919800000005",
+  },
+  {
+    email: "victim6@samvedna.demo",
+    role: "victim",
+    full_name: "Asha Bhil",
+    preferred_language: "hi",
+    phone_number: "+919800000006",
+  },
 ];
 
+function passwordFor(role: SeedUser["role"]) {
+  return role === "admin" ? ADMIN_PASSWORD : DEMO_PASSWORD;
+}
+
 async function createOrGetUser(user: SeedUser): Promise<string> {
-  const { data: existing } = await supabase.auth.admin.listUsers();
+  const password = passwordFor(user.role);
+  const metadata = {
+    role: user.role,
+    full_name: user.full_name,
+    preferred_language: user.preferred_language,
+    phone_number: user.phone_number,
+  };
+
+  const { data: existing } = await supabase.auth.admin.listUsers({ perPage: 200 });
   const found = existing?.users?.find((u) => u.email === user.email);
   if (found) {
     console.log(`  ✓ User exists: ${user.email}`);
-    if (user.role === "admin") {
-      await supabase.auth.admin.updateUserById(found.id, {
-        password: ADMIN_PASSWORD,
-        email_confirm: true,
-        user_metadata: {
-          role: user.role,
-          full_name: user.full_name,
-          preferred_language: user.preferred_language,
-        },
-      });
-    }
+    await supabase.auth.admin.updateUserById(found.id, {
+      password,
+      email_confirm: true,
+      user_metadata: metadata,
+    });
     await supabase
       .from("profiles")
       .update({
@@ -132,17 +166,11 @@ async function createOrGetUser(user: SeedUser): Promise<string> {
     return found.id;
   }
 
-  const password = user.role === "admin" ? ADMIN_PASSWORD : DEMO_PASSWORD;
   const { data, error } = await supabase.auth.admin.createUser({
     email: user.email,
     password,
     email_confirm: true,
-    user_metadata: {
-      role: user.role,
-      full_name: user.full_name,
-      preferred_language: user.preferred_language,
-      phone_number: user.phone_number,
-    },
+    user_metadata: metadata,
   });
 
   if (error) throw new Error(`Failed to create ${user.email}: ${error.message}`);
@@ -195,6 +223,24 @@ const CASES: CaseSeed[] = [
     case_type: "Witness Protection",
     status: "investigation",
     district: "Jaipur",
+    state: "Rajasthan",
+  },
+  {
+    case_number: "SAM-2024-005",
+    victim_email: "victim5@samvedna.demo",
+    counsellor_email: "counsellor3@samvedna.demo",
+    case_type: "Atrocity Act — SC/ST",
+    status: "investigation",
+    district: "Nagpur",
+    state: "Maharashtra",
+  },
+  {
+    case_number: "SAM-2024-006",
+    victim_email: "victim6@samvedna.demo",
+    counsellor_email: "counsellor3@samvedna.demo",
+    case_type: "Land Dispute / Intimidation",
+    status: "trial",
+    district: "Udaipur",
     state: "Rajasthan",
   },
 ];
@@ -307,6 +353,36 @@ const CHECKIN_TEMPLATES: Record<string, CheckinSeed[]> = {
       days_ago: 6,
     },
   ],
+  "SAM-2024-005": [
+    {
+      transcript:
+        "Gaav madhe pressure aahe. Police statement dili pan kay hoil te mahit nahi.",
+      score: 52,
+      risk_level: "moderate",
+      signals: ["community_pressure", "legal_stress"],
+      reasoning:
+        "Village-level intimidation after FIR. Moderate distress with elevated safety watch.",
+      days_ago: 4,
+    },
+    {
+      transcript: "Raatri nahi zopta. Phone var unknown calls yetil.",
+      score: 68,
+      risk_level: "high",
+      signals: ["sleep_disturbance", "threat_perception", "fear"],
+      reasoning: "Anonymous calls and insomnia after statement. High risk — outreach due.",
+      days_ago: 1,
+    },
+  ],
+  "SAM-2024-006": [
+    {
+      transcript: "Court date clear hai. Family saath de rahi hai. Thoda light feel ho raha hai.",
+      score: 26,
+      risk_level: "low",
+      signals: ["social_support"],
+      reasoning: "Protective family support and clear legal timeline. Stable low distress.",
+      days_ago: 5,
+    },
+  ],
 };
 
 async function main() {
@@ -320,6 +396,7 @@ async function main() {
   }
 
   const officialId = userIds["official@samvedna.demo"];
+  const official2Id = userIds["official2@samvedna.demo"];
 
   // Create cases
   console.log("\nCreating cases...");
@@ -328,6 +405,8 @@ async function main() {
   for (const c of CASES) {
     const victimId = userIds[c.victim_email];
     const counsellorId = userIds[c.counsellor_email];
+    const assignedOfficial =
+      c.state === "Maharashtra" || c.district === "Udaipur" ? official2Id : officialId;
 
     const { data: existing } = await supabase
       .from("cases")
@@ -349,7 +428,7 @@ async function main() {
         case_type: c.case_type,
         status: c.status,
         assigned_counsellor_id: counsellorId,
-        assigned_official_id: officialId,
+        assigned_official_id: assignedOfficial,
         district: c.district,
         state: c.state,
       })
@@ -507,11 +586,97 @@ async function main() {
     }
   }
 
+  // Victim dashboard: consultants directory + open slots
+  const consultantSeeds = [
+    {
+      email: "counsellor1@samvedna.demo",
+      name: "Dr. Priya Sharma",
+      specialization: "Trauma-informed counselling · Hindi/English",
+      bio: "Works with atrocity survivors on sleep, anxiety, and court-related stress.",
+      availability_note: "Mon–Fri 10:00–17:00 IST",
+    },
+    {
+      email: "counsellor2@samvedna.demo",
+      name: "Dr. Ananya Iyer",
+      specialization: "Clinical psychology · Tamil/English",
+      bio: "Specialises in grounding work and family-system support after FIR registration.",
+      availability_note: "Tue–Sat 11:00–18:00 IST",
+    },
+    {
+      email: "counsellor3@samvedna.demo",
+      name: "Dr. Meera Nair",
+      specialization: "Crisis & protection counselling",
+      bio: "Coordinates with district protection officers when safety is the primary need.",
+      availability_note: "Weekdays 09:30–16:30 IST",
+    },
+  ];
+
+  for (const cs of consultantSeeds) {
+    const profileId = userIds[cs.email];
+    if (!profileId) continue;
+    const { data: existingConsultant } = await supabase
+      .from("consultants")
+      .select("id")
+      .eq("profile_id", profileId)
+      .maybeSingle();
+
+    let consultantId = existingConsultant?.id as string | undefined;
+    if (!consultantId) {
+      const { data: inserted, error: cErr } = await supabase
+        .from("consultants")
+        .insert({
+          profile_id: profileId,
+          name: cs.name,
+          specialization: cs.specialization,
+          bio: cs.bio,
+          availability_note: cs.availability_note,
+          active: true,
+          active_case_count: 0,
+        })
+        .select("id")
+        .single();
+      if (cErr) {
+        console.warn("  ! Consultant seed skipped (run victim_dashboard migration first):", cErr.message);
+        break;
+      }
+      consultantId = inserted!.id;
+      console.log(`  + Consultant ${cs.name}`);
+    }
+
+    const { count: slotCount } = await supabase
+      .from("consultant_slots")
+      .select("id", { count: "exact", head: true })
+      .eq("consultant_id", consultantId!)
+      .eq("is_booked", false);
+
+    if ((slotCount ?? 0) < 3) {
+      const slots = [];
+      for (let d = 1; d <= 5; d++) {
+        const start = new Date();
+        start.setDate(start.getDate() + d);
+        start.setHours(11 + (d % 3), 0, 0, 0);
+        const end = new Date(start);
+        end.setMinutes(45);
+        slots.push({
+          consultant_id: consultantId,
+          starts_at: start.toISOString(),
+          ends_at: end.toISOString(),
+          is_booked: false,
+        });
+      }
+      await supabase.from("consultant_slots").insert(slots);
+      console.log(`  + Slots for ${cs.name}`);
+    }
+  }
+
   console.log("\n✅ Seed complete!\n");
-  console.log("Demo credentials (password for all): " + DEMO_PASSWORD);
+  console.log("Demo credentials");
   console.log("─────────────────────────────────────");
+  console.log(`  admin        admin@samvedna.demo          ${ADMIN_PASSWORD}`);
+  console.log(`  (others)     *                            ${DEMO_PASSWORD}`);
+  console.log("");
   for (const u of USERS) {
-    console.log(`  ${u.role.padEnd(12)} ${u.email}`);
+    console.log(`  ${u.role.padEnd(12)} ${u.email.padEnd(32)} ${u.full_name}`);
   }
   console.log("");
 }

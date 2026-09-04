@@ -2,9 +2,12 @@ import { Router } from "express";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { scheduleEventOutreach } from "../lib/cadence-engine";
+import { getRedactionStats } from "../lib/redact";
+import type { Server as SocketServer } from "socket.io";
 import crypto from "crypto";
 
-export function adminRouter() {
+export function adminRouter(io?: SocketServer) {
   const router = Router();
 
   router.get("/stats", requireAuth, requireRole("admin"), async (_req, res, next) => {
@@ -180,6 +183,140 @@ export function adminRouter() {
 
       if (error || !data) return res.status(404).json({ error: "Invalid or expired token" });
       res.json(data);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  const simulateBailSchema = z.object({
+    case_id: z.string().uuid(),
+  });
+
+  /**
+   * POST /admin/simulate-bail — Demo: grants bail to accused, schedules event outreach,
+   * recommends witness protection if available, records timeline event.
+   */
+  router.post("/simulate-bail", requireAuth, requireRole("admin"), async (req, res, next) => {
+    try {
+      const body = simulateBailSchema.parse(req.body);
+      const today = new Date().toISOString().split("T")[0];
+
+      // Update case with bail granted
+      const { data: caseRow, error: updateError } = await supabaseAdmin
+        .from("cases")
+        .update({
+          accused_bail_status: "granted",
+          bail_granted_date: today,
+        })
+        .eq("id", body.case_id)
+        .select(
+          "id, case_number, status, next_hearing_date, relief_due_date, relief_amount_sanctioned, relief_amount_disbursed, assigned_counsellor_id"
+        )
+        .single();
+
+      if (updateError || !caseRow) {
+        return res.status(404).json({ error: "Case not found or update failed" });
+      }
+
+      // Schedule event outreach if cadence engine is available
+      const outreachScheduled = await scheduleEventOutreach(caseRow, io);
+
+      // Record timeline event
+      await supabaseAdmin
+        .from("case_timeline_events")
+        .insert({
+          case_id: body.case_id,
+          event_type: "bail_granted",
+          description: `Demo: Accused released on bail as of ${today} — witness protection and safety checks scheduled`,
+          created_by: caseRow.assigned_counsellor_id ?? null,
+        })
+        .select("id");
+
+      // Recommend POA_WITNESS_PROTECT intervention if catalog exists
+      // (We won't fail if intervention_catalog isn't available)
+      const { data: catalogEntry } = await supabaseAdmin
+        .from("intervention_catalog")
+        .select("*")
+        .eq("code", "POA_WITNESS_PROTECT")
+        .maybeSingle();
+
+      let interventionRecommended = false;
+      if (catalogEntry) {
+        const { error: recError } = await supabaseAdmin
+          .from("support_recommendations")
+          .insert({
+            case_id: body.case_id,
+            recommendation_type: "POA_WITNESS_PROTECT",
+            priority: "high",
+            reason: "Accused released on bail — witness protection measures recommended",
+            status: "pending",
+            created_by: caseRow.assigned_counsellor_id ?? null,
+          });
+        interventionRecommended = !recError;
+      }
+
+      res.json({
+        case_id: body.case_id,
+        case_number: caseRow.case_number,
+        accused_bail_status: "granted",
+        bail_granted_date: today,
+        outreach_scheduled: outreachScheduled.length,
+        intervention_recommended: interventionRecommended ? "POA_WITNESS_PROTECT" : null,
+        honesty:
+          "Demo fast-forward: bail granted, safety outreach scheduled, witness protection recommended if catalog available.",
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /** Process-level counter of PII stripped before any transcript reached an LLM. */
+  router.get("/redaction-stats", requireAuth, requireRole("admin"), (_req, res) => {
+    const s = getRedactionStats();
+    res.json({
+      ...s,
+      placeholders: ["[NAME_n]", "[PHONE]", "[EMAIL]", "[AADHAAR]", "[VILLAGE]", "[ID]"],
+      honesty:
+        "Counted in-process and reset on API restart. The placeholder-to-original mapping is held locally for the duration of a single call and is never sent or stored.",
+    });
+  });
+
+  /**
+   * GET /admin/model-health — Check ML service reachability, redaction stats, and forecast honesty note.
+   */
+  router.get("/model-health", requireAuth, requireRole("admin"), async (_req, res, next) => {
+    try {
+      const redactionStats = getRedactionStats();
+
+      // Check ML service health (Gemini endpoint)
+      let geminiReachable = false;
+      let geminiError: string | null = null;
+      try {
+        const mlBaseUrl = process.env.ML_SERVICE_URL || "http://localhost:5000";
+        const healthUrl = `${mlBaseUrl}/health`;
+        const response = await fetch(healthUrl, { method: "GET", signal: AbortSignal.timeout(3000) });
+        geminiReachable = response.ok;
+        if (!response.ok) geminiError = `HTTP ${response.status}`;
+      } catch (err) {
+        geminiError = err instanceof Error ? err.message : String(err);
+      }
+
+      res.json({
+        ml_service: {
+          gemini_reachable: geminiReachable,
+          error: geminiError,
+          endpoint: process.env.ML_SERVICE_URL || "http://localhost:5000",
+        },
+        redaction: {
+          calls: redactionStats.calls,
+          entities_redacted: redactionStats.entities_redacted,
+          by_type: redactionStats.by_type,
+          last_redaction_at: redactionStats.last_redaction_at,
+        },
+        forecast_honesty:
+          "Distress forecasts are extrapolated from recent trends and not yet trained on longitudinal outcome data. Treat as exploratory, not predictive.",
+        honesty: "Model health snapshot at query time. Redaction stats reset on API restart.",
+      });
     } catch (err) {
       next(err);
     }

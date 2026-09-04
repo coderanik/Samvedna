@@ -13,11 +13,15 @@ import re
 from typing import Literal, Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
+
+# Import new modules
+from forecast import forecast_trajectory
+from prosody import analyse_voice
 
 load_dotenv()
 load_dotenv("../../.env")
@@ -37,7 +41,7 @@ def _get_client() -> genai.Client:
     return _client
 
 
-app = FastAPI(title="Samvedna ML Service", version="0.2.0")
+app = FastAPI(title="Samvedna ML Service", version="0.3.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -329,7 +333,7 @@ async def health():
         "provider": "gemini",
         "model": GEMINI_MODEL,
         "gemini_configured": bool(GEMINI_API_KEY),
-        "version": "0.2.0",
+        "version": "0.3.0",
     }
 
 
@@ -391,6 +395,77 @@ class ChatRequest(BaseModel):
     message: str
     preferred_language: str = "en"
     conversation_history: list[dict] = Field(default_factory=list)
+
+
+@app.post("/score-voice")
+async def score_voice(
+    file: UploadFile = File(...),
+    baseline: Optional[str] = Form(None),
+):
+    """
+    Score vocal stress from audio file.
+    
+    Accepts multipart/form-data with:
+    - file: audio file (webm, wav, mp3, etc)
+    - baseline: optional JSON string with personal baseline features
+    
+    Returns prosody features + Vocal Stress Index (0-100).
+    """
+    try:
+        audio_bytes = await file.read()
+        baseline_dict = json.loads(baseline) if baseline else None
+
+        # Infer sample rate from filename if possible (default 16kHz)
+        sample_rate = 16000
+
+        result = analyse_voice(
+            audio_bytes=audio_bytes,
+            sample_rate=sample_rate,
+            baseline=baseline_dict,
+        )
+
+        return result
+    except Exception as e:
+        return {
+            "error": str(e),
+            "vocal_stress_index": None,
+            "confidence": "error",
+            "extractor": "none",
+        }
+
+
+class ForecastRequest(BaseModel):
+    scores: list[dict] = Field(
+        ..., description="List of {score, created_at} dicts, oldest first"
+    )
+    horizon_days: int = Field(default=7, ge=1, le=30)
+    features: Optional[dict] = Field(
+        default=None, description="Optional features like engagement_drop, vocal_stress_index"
+    )
+
+
+@app.post("/forecast")
+async def forecast_distress(req: ForecastRequest):
+    """
+    Forecast distress trajectory over next N days with crisis probability.
+    
+    Uses Holt exponential smoothing when ≥4 points and statsmodels available,
+    falls back to linear+EWMA or rule-based for fewer points.
+    """
+    try:
+        result = forecast_trajectory(
+            scores=req.scores,
+            horizon_days=req.horizon_days,
+            features=req.features,
+        )
+        return result
+    except Exception as e:
+        return {
+            "error": str(e),
+            "predicted_score": None,
+            "crisis_probability": None,
+            "method": "error",
+        }
 
 
 @app.post("/chat")

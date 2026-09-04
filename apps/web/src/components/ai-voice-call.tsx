@@ -16,9 +16,18 @@ interface AiVoiceCallProps {
   sessionId: string;
   onComplete: (transcript: string, durationSeconds: number) => void;
   onCancel: () => void;
+  /** When false, parent owns persistence/scoring (e.g. instant_calls flow). Default true. */
+  persistViaCallsApi?: boolean;
 }
 
-export function AiVoiceCall({ token, locale, sessionId, onComplete, onCancel }: AiVoiceCallProps) {
+export function AiVoiceCall({
+  token,
+  locale,
+  sessionId,
+  onComplete,
+  onCancel,
+  persistViaCallsApi = true,
+}: AiVoiceCallProps) {
   const [active, setActive] = useState(false);
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -153,11 +162,13 @@ export function AiVoiceCall({ token, locale, sessionId, onComplete, onCancel }: 
       .map((t) => t.content)
       .join("\n");
 
-    await apiFetch(`/calls/${sessionId}/complete`, {
-      method: "POST",
-      token,
-      body: JSON.stringify({ transcript, duration_seconds: duration }),
-    });
+    if (persistViaCallsApi) {
+      await apiFetch(`/calls/${sessionId}/complete`, {
+        method: "POST",
+        token,
+        body: JSON.stringify({ transcript, duration_seconds: duration }),
+      });
+    }
 
     onComplete(transcript, duration);
   }

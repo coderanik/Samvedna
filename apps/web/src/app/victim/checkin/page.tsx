@@ -3,14 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
-import { AppShell } from "@/components/app-shell";
-import { CrisisNotice } from "@/components/crisis-notice";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { MeshGradient } from "@/components/mesh-gradient";
+import { BreathingOrb } from "@/components/breathing-orb";
+import { CrisisSheet } from "@/components/crisis-sheet";
 import { apiFetch } from "@/lib/utils";
 import { getMessages, type Locale } from "@/i18n/messages";
-import { Send, Loader2, Phone, AlertCircle } from "lucide-react";
 import type { Case, CaseWithDetails, CreateCheckinResponse } from "@samvedna/shared-types";
 
 interface ChatMessage {
@@ -19,18 +16,61 @@ interface ChatMessage {
 }
 
 const GREETINGS: Record<string, string> = {
-  en: "Hello. I'm Mann-Mitra, here to check in on how you're doing — no rush, no judgment. How have you been feeling lately?",
-  hi: "नमस्ते। मैं मन-मित्र हूँ, यह जानने के लिए कि आप कैसा महसूस कर रहे हैं — कोई जल्दी नहीं। हाल ही में आप कैसा महसूस कर रहे हैं?",
-  ta: "வணக்கம். நான் மன்-மித்ரா — நீங்கள் எப்படி இருக்கிறீர்கள் என்று அறிய இங்கே இருக்கிறேன். சமீபத்தில் நீங்கள் எப்படி உணர்கிறீர்கள்?",
+  en: "How has today been? There is no rush — share only what feels safe.",
+  hi: "आज कैसा रहा? कोई जल्दी नहीं — जितना सुरक्षित लगे, उतना ही बताएँ।",
+  ta: "இன்று எப்படி இருந்தது? அவசரமில்லை — பாதுகாப்பாக உணரும் அளவுக்கு மட்டும் பகிரவும்.",
 };
 
+const LANGS: Array<{ code: Locale | string; label: string }> = [
+  { code: "en", label: "English" },
+  { code: "hi", label: "हिंदी" },
+  { code: "ta", label: "தமிழ்" },
+  { code: "te", label: "తెలుగు" },
+  { code: "mr", label: "मराठी" },
+  { code: "bn", label: "বাংলা" },
+  { code: "kn", label: "ಕನ್ನಡ" },
+  { code: "gu", label: "ગુજરાતી" },
+  { code: "or", label: "ଓଡ଼ିଆ" },
+  { code: "pa", label: "ਪੰਜਾਬੀ" },
+  { code: "ml", label: "മലയാളം" },
+  { code: "as", label: "অসমীয়া" },
+];
+
+function StreamingText({ text }: { text: string }) {
+  const [shown, setShown] = useState("");
+  useEffect(() => {
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      setShown(text);
+      return;
+    }
+    setShown("");
+    const charsPerTick = Math.max(1, Math.ceil(text.length / (text.length / 4 + 8)));
+    let i = 0;
+    const id = window.setInterval(() => {
+      i = Math.min(text.length, i + charsPerTick);
+      setShown(text.slice(0, i));
+      if (i >= text.length) window.clearInterval(id);
+    }, 40);
+    return () => window.clearInterval(id);
+  }, [text]);
+  return <>{shown}</>;
+}
+
 export default function VictimCheckinPage() {
-  const [profile, setProfile] = useState<{ full_name: string; preferred_language: string } | null>(null);
+  const [profile, setProfile] = useState<{ full_name: string; preferred_language: string } | null>(
+    null
+  );
   const [caseRow, setCaseRow] = useState<Case | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [started, setStarted] = useState(false);
   const [input, setInput] = useState("");
+  const [mood, setMood] = useState(50);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [chatError, setChatError] = useState("");
   const [locale, setLocale] = useState<Locale>("en");
@@ -42,27 +82,31 @@ export default function VictimCheckinPage() {
     async function init() {
       setLoadError("");
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) return;
       setToken(session.access_token);
 
-      const { data: prof } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", session.user.id)
+        .single();
       if (prof) {
         setProfile(prof);
         const lang = (prof.preferred_language as Locale) || "en";
         setLocale(lang);
-        setMessages([{ role: "assistant", content: GREETINGS[lang] ?? GREETINGS.en }]);
       }
 
       try {
         const cases = await apiFetch<CaseWithDetails[]>("/cases", {
           token: session.access_token,
         });
-        if (cases?.[0]) {
-          setCaseRow(cases[0]);
-        } else {
+        if (cases?.[0]) setCaseRow(cases[0]);
+        else {
           setLoadError(
-            "No case linked to your account. Use a seeded demo account (victim1@samvedna.demo) or ask your counsellor to assign one."
+            "No case linked yet. Use a seeded demo account or ask your counsellor to assign one."
           );
         }
       } catch (err) {
@@ -74,7 +118,12 @@ export default function VictimCheckinPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, loading]);
+
+  function begin() {
+    setStarted(true);
+    setMessages([{ role: "assistant", content: GREETINGS[locale] ?? GREETINGS.en }]);
+  }
 
   async function getBotReply(userMsg: string, history: ChatMessage[]) {
     setChatError("");
@@ -91,27 +140,22 @@ export default function VictimCheckinPage() {
         }),
       });
       return data.response;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Chat unavailable";
-      setChatError(msg);
+    } catch {
+      setChatError("Chat is temporarily unavailable — your words can still be saved.");
       return locale === "hi"
-        ? "मैं अभी पूरी तरह जुड़ नहीं पा रहा, लेकिन मैं सुन रहा हूँ। आप जो भी साझा करना चाहें, यहाँ लिख सकते हैं।"
-        : locale === "ta"
-          ? "நான் இப்போது முழுவதும் இணைக்க முடியவில்லை, ஆனால் கேட்கிறேன். நீங்கள் பகிர விரும்புவதை இங்கே எழுதலாம்."
-          : "I'm having trouble connecting right now, but I'm listening. Please share what's on your mind — your words will still be saved.";
+        ? "मैं सुन रहा हूँ। आप जो भी साझा करना चाहें, यहाँ लिख सकते हैं।"
+        : "I'm listening. Share whatever feels right — it will still be kept safely.";
     }
   }
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim() || !caseRow || !token) return;
-
     const userMsg = input.trim();
     setInput("");
     const newHistory = [...messages, { role: "user" as const, content: userMsg }];
     setMessages(newHistory);
     setLoading(true);
-
     try {
       const botReply = await getBotReply(userMsg, newHistory);
       setMessages((prev) => [...prev, { role: "assistant", content: botReply }]);
@@ -124,28 +168,19 @@ export default function VictimCheckinPage() {
     if (!caseRow || !token) return;
     const userMessages = messages.filter((m) => m.role === "user");
     if (userMessages.length === 0) return;
-
     setSubmitting(true);
     setChatError("");
     try {
-      const transcript = userMessages.map((m) => m.content).join("\n");
+      const transcript = [
+        ...userMessages.map((m) => m.content),
+        `[mood_temperature:${mood}]`,
+      ].join("\n");
       await apiFetch<CreateCheckinResponse>("/checkins", {
         method: "POST",
         token,
         body: JSON.stringify({ case_id: caseRow.id, message: transcript, channel: "chatbot" }),
       });
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            locale === "hi"
-              ? "आपकी जांच सहेज ली गई है। धन्यवाद। जब भी तैयार हों, मैं यहाँ हूँ।"
-              : locale === "ta"
-                ? "உங்கள் சரிபார்ப்பு சேமிக்கப்பட்டது. நன்றி."
-                : "Thank you for telling me. Someone who cares is looking after your case. I'm here whenever you need.",
-        },
-      ]);
+      setDone(true);
     } catch (err) {
       setChatError(err instanceof Error ? err.message : "Failed to save check-in");
     } finally {
@@ -153,142 +188,167 @@ export default function VictimCheckinPage() {
     }
   }
 
-  function needHelpNow() {
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content:
-          locale === "hi"
-            ? "आप सुरक्षित हैं — मदद उपलब्ध है। आपातकाल 112 · KIRAN 1800-599-0019 · Tele-MANAS 14416 · NHAA 14566। कोई भी स्पष्टीकरण आवश्यक नहीं।"
-            : locale === "ta"
-              ? "நீங்கள் தனியாக இல்லை. அவசரம் 112 · KIRAN 1800-599-0019 · Tele-MANAS 14416 · NHAA 14566."
-              : "You do not have to explain anything first. Emergency 112 · KIRAN 1800-599-0019 · Tele-MANAS 14416 · NHAA 14566. A human care path is available.",
-      },
-    ]);
-  }
-
   return (
-    <AppShell userName={profile?.full_name}>
-      <div className="mx-auto max-w-2xl space-y-4">
-        <div className="flex items-center justify-between">
+    <main className="theme-sanctuary relative min-h-screen overflow-x-hidden">
+      <MeshGradient />
+      <div className="relative mx-auto flex min-h-screen max-w-2xl flex-col px-6 py-8">
+        <header className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">{t.checkinTitle}</h1>
-            <p className="text-muted-foreground">{t.checkinSubtitle}</p>
+            <p className="text-[11px] tracking-[0.3em] text-[var(--sanctuary-ink-3)]">SAMVEDNA</p>
+            <p className="text-sm text-[var(--sanctuary-ink-2)]">
+              {profile?.full_name ? `Hello, ${profile.full_name.split(" ")[0]}` : t.checkinTitle}
+            </p>
           </div>
-          <select
-            className="rounded-md border px-2 py-1 text-sm"
-            value={locale}
-            onChange={(e) => setLocale(e.target.value as Locale)}
-          >
-            <option value="en">English</option>
-            <option value="hi">हिंदी</option>
-            <option value="ta">தமிழ்</option>
-          </select>
+          <CrisisSheet locale={locale} />
+        </header>
+
+        <div className="mt-6 flex flex-wrap gap-x-4 gap-y-2">
+          {LANGS.map((l) => (
+            <button
+              key={l.code}
+              type="button"
+              onClick={() => setLocale(l.code as Locale)}
+              className={`text-sm transition ${
+                locale === l.code
+                  ? "text-[var(--sanctuary-ink)] underline underline-offset-4"
+                  : "text-[var(--sanctuary-ink-3)]"
+              }`}
+            >
+              {l.label}
+            </button>
+          ))}
         </div>
 
-        <CrisisNotice locale={locale} />
-
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full border-teal-800/20 bg-teal-50 text-teal-950 hover:bg-teal-100"
-          onClick={needHelpNow}
-        >
-          I need help now
-        </Button>
-
-        <Card className="border-teal-900/10 bg-white/70">
-          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <Phone className="mt-0.5 h-5 w-5 shrink-0 text-teal-800" />
-              <div className="text-sm">
-                <p className="font-medium">Prefer to talk instead of type?</p>
-                <p className="text-muted-foreground">
-                  You can start a gentle voice conversation whenever you are ready.
-                </p>
-              </div>
-            </div>
-            <Link href="/victim/call">
-              <Button variant="secondary" size="sm" className="shrink-0">
-                Start voice call
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {caseRow && (
-          <p className="text-xs text-muted-foreground">
-            Case {caseRow.case_number} · {caseRow.case_type}
+        {loadError && (
+          <p className="mt-8 text-sm text-[var(--sanctuary-terracotta)]" role="alert">
+            {loadError}
           </p>
         )}
 
-        {loadError && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <div>
-              <p className="font-medium">Cannot start check-in yet</p>
-              <p className="mt-1">{loadError}</p>
-            </div>
+        {!started && !done && (
+          <div className="flex flex-1 flex-col items-center justify-center py-16">
+            <p className="mb-10 text-center font-display text-3xl text-[var(--sanctuary-ink)] sm:text-4xl">
+              How has today been?
+            </p>
+            <BreathingOrb onActivate={begin} />
+            <p className="mt-10 max-w-sm text-center text-sm text-[var(--sanctuary-ink-2)]">
+              Or type below whenever you are ready. Nothing here shows a score or a risk label —
+              by design.
+            </p>
+            <Link
+              href="/victim/call"
+              className="mt-8 text-sm text-[var(--sanctuary-teal)] underline underline-offset-4"
+            >
+              Prefer to talk instead →
+            </Link>
           </div>
         )}
 
-        <div className="flex h-[28rem] flex-col rounded-xl border bg-card shadow-sm">
-          <div className="flex-1 space-y-4 overflow-y-auto p-4">
-            {messages.map((m, i) => (
-              <div
-                key={i}
-                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-              >
+        {started && !done && (
+          <>
+            <div
+              className="mt-10 flex-1 space-y-8"
+              aria-live="polite"
+              aria-relevant="additions"
+            >
+              {messages.map((m, i) => (
                 <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                    m.role === "user"
-                      ? "bg-primary text-primary-foreground rounded-br-md"
-                      : "bg-secondary text-secondary-foreground rounded-bl-md"
-                  }`}
+                  key={i}
+                  className={m.role === "user" ? "text-right" : "text-left"}
                 >
-                  {m.content}
+                  {m.role === "user" ? (
+                    <p className="font-display text-[19px] italic text-[var(--sanctuary-ink)]">
+                      {m.content}
+                    </p>
+                  ) : (
+                    <p className="max-w-prose text-[17px] leading-relaxed text-[var(--sanctuary-ink-2)]">
+                      {i === messages.length - 1 && !loading ? (
+                        <StreamingText text={m.content} />
+                      ) : (
+                        m.content
+                      )}
+                    </p>
+                  )}
                 </div>
+              ))}
+              {loading && (
+                <p className="text-sm text-[var(--sanctuary-ink-3)]">Mann-Mitra is listening…</p>
+              )}
+              <div ref={bottomRef} />
+            </div>
+
+            <div className="mt-10">
+              <div className="mb-2 flex justify-between text-xs text-[var(--sanctuary-ink-3)]">
+                <span>heavy</span>
+                <span>lighter</span>
               </div>
-            ))}
-            {loading && (
-              <div className="flex justify-start">
-                <div className="rounded-2xl bg-secondary px-4 py-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                </div>
-              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={mood}
+                onChange={(e) => setMood(Number(e.target.value))}
+                aria-label="How heavy or light today feels"
+                className="h-2 w-full cursor-pointer appearance-none rounded-none"
+                style={{
+                  background:
+                    "linear-gradient(90deg, #6b9080 0%, #e8dcc8 50%, #c97b5a 100%)",
+                }}
+              />
+            </div>
+
+            <form onSubmit={handleSend} className="mt-8 flex gap-3 border-b border-[var(--sanctuary-sand)] pb-2">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={caseRow ? "Write freely…" : "Assign a case first…"}
+                disabled={!caseRow || loading || !token}
+                className="flex-1 border-0 bg-transparent text-[17px] text-[var(--sanctuary-ink)] outline-none placeholder:text-[var(--sanctuary-ink-3)]"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || !caseRow || loading}
+                className="text-sm text-[var(--sanctuary-teal)] disabled:opacity-40"
+              >
+                Send
+              </button>
+            </form>
+
+            {chatError && (
+              <p className="mt-3 text-center text-xs text-[var(--sanctuary-terracotta)]">{chatError}</p>
             )}
-            <div ref={bottomRef} />
-          </div>
 
-          <form onSubmit={handleSend} className="flex gap-2 border-t p-3">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={caseRow ? t.typeMessage : "Assign a case first to chat..."}
-              disabled={!caseRow || loading || !token}
-              className="flex-1 border-0 bg-muted/50 focus-visible:ring-1"
-            />
-            <Button type="submit" size="icon" disabled={!input.trim() || !caseRow || loading}>
-              <Send className="h-4 w-4" />
-            </Button>
-          </form>
-        </div>
-
-        {chatError && (
-          <p className="text-center text-xs text-destructive">{chatError}</p>
+            <button
+              type="button"
+              onClick={finishCheckin}
+              disabled={
+                submitting || !caseRow || messages.filter((m) => m.role === "user").length === 0
+              }
+              className="mt-8 self-center text-sm text-[var(--sanctuary-ink-2)] underline underline-offset-4 disabled:opacity-40"
+            >
+              {submitting ? "Saving…" : "I'm done for now"}
+            </button>
+          </>
         )}
 
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            onClick={finishCheckin}
-            disabled={submitting || !caseRow || messages.filter((m) => m.role === "user").length === 0}
-          >
-            {submitting ? "Saving..." : "I'm done for now — save check-in"}
-          </Button>
-        </div>
+        {done && (
+          <div className="flex flex-1 flex-col items-center justify-center py-24 text-center">
+            <p className="font-display text-3xl text-[var(--sanctuary-ink)] sm:text-4xl">
+              Thank you for telling me.
+            </p>
+            <p className="mt-4 max-w-md text-[var(--sanctuary-ink-2)]">
+              Someone who cares is looking at your case. Your counsellor has been notified when
+              needed — you will not see a score here, ever.
+            </p>
+            <Link
+              href="/victim/history"
+              className="mt-10 text-sm text-[var(--sanctuary-teal)] underline underline-offset-4"
+            >
+              See your care journey →
+            </Link>
+          </div>
+        )}
       </div>
-    </AppShell>
+    </main>
   );
 }

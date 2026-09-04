@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
-import { AppShell } from "@/components/app-shell";
-import { CrisisNotice } from "@/components/crisis-notice";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MeshGradient } from "@/components/mesh-gradient";
+import { CrisisSheet } from "@/components/crisis-sheet";
 import type { Checkin, Profile } from "@samvedna/shared-types";
 
-/** Care timeline for survivors — NEVER shows scores or risk labels. */
+/** Care journey — NEVER shows scores or risk labels. */
 export default function VictimHistoryPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [checkins, setCheckins] = useState<Checkin[]>([]);
@@ -35,44 +35,56 @@ export default function VictimHistoryPage() {
   }, []);
 
   return (
-    <AppShell role="victim" userName={profile?.full_name}>
-      <div className="mx-auto max-w-2xl space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Your care journey</h1>
-        <p className="text-sm text-muted-foreground">
-          Moments you shared, and care taken on your behalf — without scores or labels.
-        </p>
-        <CrisisNotice locale={profile?.preferred_language} />
-
-        {checkins.length === 0 ? (
-          <p className="py-12 text-center text-muted-foreground">
-            No check-ins yet. When you talk with Mann-Mitra, your journey appears here.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {checkins.map((c) => (
-              <Card key={c.id} className="border-teal-900/10 bg-white/80">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-medium">
-                    {new Date(c.created_at).toLocaleDateString(undefined, {
-                      weekday: "long",
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </CardTitle>
-                  <p className="text-xs capitalize text-muted-foreground">via {c.channel}</p>
-                </CardHeader>
-                <CardContent>
-                  <p className="line-clamp-3 text-sm text-muted-foreground">{c.raw_transcript}</p>
-                  <p className="mt-3 text-xs text-teal-900/70">
-                    Thank you for sharing. Your care team looks after what comes next.
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+    <main className="theme-sanctuary relative min-h-screen">
+      <MeshGradient />
+      <div className="relative mx-auto max-w-2xl px-6 py-10">
+        <header className="mb-12 flex items-center justify-between">
+          <div>
+            <p className="text-[11px] tracking-[0.3em] text-[var(--sanctuary-ink-3)]">SAMVEDNA</p>
+            <h1 className="font-display text-3xl text-[var(--sanctuary-ink)]">Your care journey</h1>
+            <p className="mt-2 text-[var(--sanctuary-ink-2)]">
+              What you shared, and that someone is walking with you — never a score.
+            </p>
           </div>
+          <CrisisSheet />
+        </header>
+
+        <div className="relative border-l border-[var(--sanctuary-sand)] pl-8">
+          {checkins.length === 0 && (
+            <p className="text-[var(--sanctuary-ink-2)]">
+              No check-ins yet.{" "}
+              <Link href="/victim/checkin" className="text-[var(--sanctuary-teal)] underline">
+                Begin when you are ready →
+              </Link>
+            </p>
+          )}
+          {checkins.map((c) => (
+            <article key={c.id} className="relative mb-10">
+              <span className="absolute -left-[2.4rem] top-1 h-3 w-3 rounded-full bg-[var(--sanctuary-teal)]" />
+              <p className="text-xs text-[var(--sanctuary-ink-3)]">
+                {new Date(c.created_at).toLocaleString()} · {c.channel.replace(/_/g, " ")}
+              </p>
+              <p className="mt-2 font-display text-lg italic text-[var(--sanctuary-ink)]">
+                {c.raw_transcript.slice(0, 220)}
+                {c.raw_transcript.length > 220 ? "…" : ""}
+              </p>
+              <p className="mt-2 text-sm text-[var(--sanctuary-ink-2)]">
+                Received. Your care team can see this when they need to.
+              </p>
+            </article>
+          ))}
+        </div>
+
+        <Link
+          href="/victim/checkin"
+          className="mt-8 inline-block text-sm text-[var(--sanctuary-teal)] underline underline-offset-4"
+        >
+          ← Back to check-in
+        </Link>
+        {profile && (
+          <p className="mt-12 text-xs text-[var(--sanctuary-ink-3)]">{profile.full_name}</p>
         )}
       </div>
-    </AppShell>
+    </main>
   );
 }

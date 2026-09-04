@@ -2,9 +2,9 @@ import type { User } from "@supabase/supabase-js";
 import type { UserRole } from "@samvedna/shared-types";
 
 export const ROLE_HOME: Record<UserRole, string> = {
-  victim: "/victim/checkin",
+  victim: "/victim/dashboard",
   counsellor: "/counselor/cases",
-  official: "/official/dashboard",
+  official: "/admin",
   admin: "/admin",
 };
 

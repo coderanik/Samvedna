@@ -5,17 +5,21 @@
 -- This file documents the demo data structure. Run migrations first, then:
 --   1. pnpm seed
 --
--- Demo users (password: Samvedna@2024):
---   admin@samvedna.demo          — admin
---   official@samvedna.demo       — official (Rajesh Kumar, Jaipur district)
---   counsellor1@samvedna.demo    — counsellor (Dr. Priya Sharma, Hindi)
---   counsellor2@samvedna.demo    — counsellor (Dr. Ananya Iyer, Tamil)
+-- Demo users:
+--   admin@samvedna.demo          — admin          password: SamvednaAdmin@2024
+--   official@samvedna.demo       — official       password: Samvedna@2024
+--   official2@samvedna.demo      — official       password: Samvedna@2024
+--   counsellor1@samvedna.demo    — counsellor     password: Samvedna@2024
+--   counsellor2@samvedna.demo    — counsellor     password: Samvedna@2024
+--   counsellor3@samvedna.demo    — counsellor     password: Samvedna@2024
 --   victim1@samvedna.demo        — Meera Devi (high risk, Jaipur)
 --   victim2@samvedna.demo        — Lakshmi Rajan (moderate, Chennai)
 --   victim3@samvedna.demo        — Sunita Yadav (critical, Lucknow)
 --   victim4@samvedna.demo        — Fatima Khan (low, Jaipur)
+--   victim5@samvedna.demo        — Ramesh Kamble (high, Nagpur)
+--   victim6@samvedna.demo        — Asha Bhil (low, Udaipur)
 --
 -- Cases span risk levels: low → moderate → high → critical
--- Alerts exist for SAM-2024-001 (high) and SAM-2024-003 (critical)
+-- Alerts exist for high/critical check-ins (001, 003, 005)
 
 SELECT 'Run `pnpm seed` to populate demo data via Supabase Admin API' AS instruction;

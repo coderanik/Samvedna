@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 140" width="100%" height="100%">
+  <defs>
+    <!-- Warm Gold / Terracotta Empathy Gradient -->
+    <linearGradient id="hdTerracottaGold" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#c97b5a" />
+      <stop offset="50%" stop-color="#f4a261" />
+      <stop offset="100%" stop-color="#ffd166" />
+    </linearGradient>
+
+    <!-- Sanctuary Teal / Healing Jade Gradient -->
+    <linearGradient id="hdTealJade" x1="0%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#0b524b" />
+      <stop offset="40%" stop-color="#0f6f65" />
+      <stop offset="80%" stop-color="#2a9d8f" />
+      <stop offset="100%" stop-color="#52b788" />
+    </linearGradient>
+
+    <linearGradient id="hdLeftWing" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#09433d" />
+      <stop offset="50%" stop-color="#127c71" />
+      <stop offset="100%" stop-color="#48cae4" />
+    </linearGradient>
+
+    <linearGradient id="hdRightWing" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#09433d" />
+      <stop offset="50%" stop-color="#2a9d8f" />
+      <stop offset="100%" stop-color="#83c5be" />
+    </linearGradient>
+
+    <radialGradient id="hdBinduGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff" />
+      <stop offset="40%" stop-color="#ffd166" />
+      <stop offset="100%" stop-color="#f4a261" stop-opacity="0" />
+    </radialGradient>
+
+    <filter id="hdShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- LOGOMARK ICON (Scaled & Centered at X: 70, Y: 70) -->
+  <g transform="translate(14, 12) scale(0.226)" filter="url(#hdShadow)">
+    <!-- Resonance Waves -->
+    <path d="M 184,188 C 204,164 228,152 256,152 C 284,152 308,164 328,188" 
+          fill="none" stroke="url(#hdTerracottaGold)" stroke-width="3" stroke-linecap="round" stroke-opacity="0.7" />
+    <path d="M 198,206 C 214,188 234,178 256,178 C 278,178 298,188 314,206" 
+          fill="none" stroke="url(#hdTealJade)" stroke-width="3.5" stroke-linecap="round" stroke-opacity="0.9" />
+    <path d="M 214,224 C 226,210 240,202 256,202 C 272,202 286,210 298,224" 
+          fill="none" stroke="url(#hdTerracottaGold)" stroke-width="4" stroke-linecap="round" />
+
+    <!-- Wings -->
+    <path d="M 256,416 C 206,416 142,382 116,328 C 92,278 94,212 122,158 C 132,138 148,124 168,118 C 178,115 188,121 190,131 C 192,141 187,151 177,156 C 158,166 146,182 138,202 C 122,240 124,288 150,324 C 174,358 214,380 256,380 Z"
+          fill="url(#hdLeftWing)" />
+    <path d="M 256,416 C 306,416 370,382 396,328 C 420,278 418,212 390,158 C 380,138 364,124 344,118 C 334,115 324,121 322,131 C 320,141 325,151 335,156 C 354,166 366,182 374,202 C 390,240 388,288 362,324 C 338,358 298,380 256,380 Z"
+          fill="url(#hdRightWing)" />
+
+    <!-- Lotus Petals -->
+    <path d="M 256,370 C 224,352 182,316 174,266 C 168,228 184,196 206,182 C 216,176 226,180 228,190 C 230,198 226,206 218,212 C 204,222 196,242 198,266 C 202,298 230,328 256,344 Z"
+          fill="url(#hdTealJade)" />
+    <path d="M 256,370 C 288,352 330,316 338,266 C 344,228 328,196 306,182 C 296,176 286,180 284,190 C 282,198 286,206 294,212 C 308,222 316,242 314,266 C 310,298 282,328 256,344 Z"
+          fill="url(#hdTealJade)" />
+
+    <!-- Heart Vessel -->
+    <path d="M 256,346 C 242,330 208,296 208,260 C 208,232 228,214 250,214 C 253,214 256,215 256,215 C 256,215 259,214 262,214 C 284,214 304,232 304,260 C 304,296 270,330 256,346 Z"
+          fill="url(#hdTerracottaGold)" />
+    <!-- Rising Flame -->
+    <path d="M 256,150 C 245,178 240,204 246,226 C 248,232 253,236 256,236 C 259,236 264,232 266,226 C 272,204 267,178 256,150 Z"
+          fill="url(#hdTerracottaGold)" />
+
+    <!-- Bindu -->
+    <circle cx="256" cy="116" r="18" fill="url(#hdBinduGlow)" />
+    <circle cx="256" cy="116" r="9" fill="#ffffff" />
+    <circle cx="256" cy="116" r="5" fill="#ffd166" />
+  </g>
+
+  <!-- BRAND WORDMARK & TYPOGRAPHY -->
+  <g transform="translate(150, 0)">
+    <!-- Brand Title: SAMVEDNA -->
+    <text x="0" y="66" 
+          font-family="'Fraunces', 'Cinzel', 'Playfair Display', Georgia, serif" 
+          font-size="44" 
+          font-weight="600" 
+          letter-spacing="4.5" 
+          fill="#fdfbf7">SAMVEDNA</text>
+
+    <!-- Radiant Accent Line -->
+    <rect x="2" y="78" width="56" height="2.5" rx="1.25" fill="url(#hdTerracottaGold)" />
+    <circle cx="68" cy="79.25" r="2" fill="#52b788" />
+
+    <!-- Subtitle: Devanagari & Tagline -->
+    <text x="2" y="104" 
+          font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" 
+          font-size="14.5" 
+          font-weight="450" 
+          letter-spacing="1.2" 
+          fill="#93a19f">
+      <tspan font-weight="600" fill="#52b788">संवेदना</tspan>
+      <tspan fill="#f4a261" font-weight="300"> · </tspan>
+      <tspan fill="#e8dcc8">listening beyond words</tspan>
+    </text>
+  </g>
+</svg>
