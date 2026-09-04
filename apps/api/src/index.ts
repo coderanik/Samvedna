@@ -17,17 +17,23 @@ import { callsRouter } from "./routes/calls";
 import { supabaseAdmin } from "./lib/supabase";
 
 const PORT = parseInt(process.env.PORT ?? "4000", 10);
-const CORS_ORIGIN = process.env.SOCKET_CORS_ORIGIN ?? "http://localhost:3000";
+const CORS_ORIGINS = (
+  process.env.SOCKET_CORS_ORIGIN ??
+  "http://localhost:3000,http://localhost:3001,http://localhost:3002"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 const app = express();
 const httpServer = createServer(app);
 
 const io = new SocketServer(httpServer, {
-  cors: { origin: CORS_ORIGIN, credentials: true },
+  cors: { origin: CORS_ORIGINS, credentials: true },
 });
 
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: CORS_ORIGIN, credentials: true }));
+app.use(cors({ origin: CORS_ORIGINS, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
@@ -66,7 +72,7 @@ io.on("connection", (socket) => {
 
 httpServer.listen(PORT, () => {
   console.log(`Samvedna API running on http://localhost:${PORT}`);
-  console.log(`Socket.io CORS origin: ${CORS_ORIGIN}`);
+  console.log(`Socket.io CORS origins: ${CORS_ORIGINS.join(", ")}`);
 });
 
 export { io, supabaseAdmin };

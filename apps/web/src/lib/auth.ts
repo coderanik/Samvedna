@@ -3,7 +3,7 @@ import type { UserRole } from "@samvedna/shared-types";
 
 export const ROLE_HOME: Record<UserRole, string> = {
   victim: "/victim/checkin",
-  counsellor: "/counsellor/cases",
+  counsellor: "/counselor/cases",
   official: "/official/dashboard",
   admin: "/admin",
 };

@@ -82,7 +82,7 @@ export default function CounsellorCallsPage() {
 
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Counsellor calls</h1>
-        <Link href="/counsellor/cases">
+        <Link href="/counselor/cases">
           <Button variant="outline" size="sm">← Cases</Button>
         </Link>
       </div>

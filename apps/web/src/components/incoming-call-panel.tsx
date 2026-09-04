@@ -55,7 +55,7 @@ export function IncomingCallPanel({
                   Accept
                 </Button>
                 <Button size="sm" variant="outline" asChild>
-                  <a href="/counsellor/calls">Open calls</a>
+                  <a href="/counselor/calls">Open calls</a>
                 </Button>
               </div>
             </div>

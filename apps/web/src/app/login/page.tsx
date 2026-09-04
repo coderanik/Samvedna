@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
@@ -11,13 +11,26 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Heart } from "lucide-react";
 
+const PORTAL = process.env.NEXT_PUBLIC_PORTAL ?? "";
+const IS_ADMIN_PORTAL = PORTAL === "admin";
+
+const FIXED_ADMIN_EMAIL = "admin@samvedna.demo";
+const FIXED_ADMIN_PASSWORD = "SamvednaAdmin@2024";
+
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(IS_ADMIN_PORTAL ? FIXED_ADMIN_EMAIL : "");
+  const [password, setPassword] = useState(IS_ADMIN_PORTAL ? FIXED_ADMIN_PASSWORD : "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  useEffect(() => {
+    if (IS_ADMIN_PORTAL) {
+      setEmail(FIXED_ADMIN_EMAIL);
+      setPassword(FIXED_ADMIN_PASSWORD);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,6 +57,14 @@ export default function LoginPage() {
       .single();
 
     const role = resolveUserRole(user, profile);
+
+    if (IS_ADMIN_PORTAL && role !== "admin") {
+      await supabase.auth.signOut();
+      setError("This portal is for the system admin only.");
+      setLoading(false);
+      return;
+    }
+
     router.refresh();
     router.push(homeForRole(role));
   }
@@ -87,10 +108,27 @@ export default function LoginPage() {
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Heart className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle>Samvedna</CardTitle>
-          <CardDescription>Listening beyond words · शब्दों से परे</CardDescription>
+          <CardTitle>{IS_ADMIN_PORTAL ? "Samvedna Admin" : "Samvedna"}</CardTitle>
+          <CardDescription>
+            {IS_ADMIN_PORTAL
+              ? "System administration portal"
+              : "Listening beyond words · शब्दों से परे"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
+          {IS_ADMIN_PORTAL && (
+            <div className="mb-4 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-left text-xs text-muted-foreground">
+              <p className="font-semibold text-foreground">Fixed admin login</p>
+              <p>
+                Email: <span className="font-mono text-foreground">{FIXED_ADMIN_EMAIL}</span>
+              </p>
+              <p>
+                Password:{" "}
+                <span className="font-mono text-foreground">{FIXED_ADMIN_PASSWORD}</span>
+              </p>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -100,6 +138,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                readOnly={IS_ADMIN_PORTAL}
               />
             </div>
             <div className="space-y-2">
@@ -118,36 +157,40 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="my-4 flex items-center gap-3">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
+          {!IS_ADMIN_PORTAL && (
+            <>
+              <div className="my-4 flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">or</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            disabled={loading || googleLoading}
-            onClick={handleGoogle}
-          >
-            {googleLoading ? "Opening Google..." : "Continue with Google"}
-          </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={loading || googleLoading}
+                onClick={handleGoogle}
+              >
+                {googleLoading ? "Opening Google..." : "Continue with Google"}
+              </Button>
 
-          <button
-            type="button"
-            className="mt-3 w-full text-center text-xs text-muted-foreground underline"
-            onClick={resendConfirmation}
-          >
-            Resend confirmation email
-          </button>
+              <button
+                type="button"
+                className="mt-3 w-full text-center text-xs text-muted-foreground underline"
+                onClick={resendConfirmation}
+              >
+                Resend confirmation email
+              </button>
 
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            No account?{" "}
-            <Link href="/signup" className="text-primary hover:underline">
-              Create one
-            </Link>
-          </p>
+              <p className="mt-4 text-center text-sm text-muted-foreground">
+                No account?{" "}
+                <Link href="/signup" className="text-primary hover:underline">
+                  Create one
+                </Link>
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

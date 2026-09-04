@@ -3,8 +3,10 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -n web,api,ml -c blue,green,yellow \"pnpm --filter @samvedna/web dev\" \"pnpm --filter @samvedna/api dev\" \"pnpm --filter @samvedna/ml-service dev\"",
-    "dev:clean": "for p in 3000 4000 8001; do lsof -ti :$p | xargs kill -9 2>/dev/null; done; pnpm dev",
+    "dev:clean": "for p in 3000 3001 3002 4000 8001; do lsof -ti :$p | xargs kill -9 2>/dev/null; done; pnpm dev",
     "dev:web": "pnpm --filter @samvedna/web dev",
+    "dev:counselor": "bash scripts/dev-role-web.sh counselor",
+    "dev:admin": "bash scripts/dev-role-web.sh admin",
     "dev:api": "pnpm --filter @samvedna/api dev",
     "dev:ml": "pnpm --filter @samvedna/ml-service dev",
     "dev:mobile": "pnpm --filter @samvedna/mobile start",
@@ -12,6 +14,7 @@
     "build": "pnpm --filter @samvedna/shared-types build && pnpm --filter @samvedna/web build && pnpm --filter @samvedna/api build",
     "lint": "pnpm -r lint",
     "seed": "tsx scripts/seed.ts",
+    "ensure-admin": "tsx scripts/ensure-admin.ts",
     "clear-seed": "tsx scripts/clear-seed.ts",
     "migrate:check": "tsx scripts/migrate-check.ts"
   },

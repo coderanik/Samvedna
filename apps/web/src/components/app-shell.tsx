@@ -17,8 +17,8 @@ const NAV: Record<UserRole, { href: string; label: string }[]> = {
     { href: "/victim/history", label: "History" },
   ],
   counsellor: [
-    { href: "/counsellor/cases", label: "Cases" },
-    { href: "/counsellor/calls", label: "Calls" },
+    { href: "/counselor/cases", label: "Cases" },
+    { href: "/counselor/calls", label: "Calls" },
   ],
   official: [
     { href: "/official/dashboard", label: "Dashboard" },

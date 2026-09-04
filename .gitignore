@@ -5,6 +5,8 @@ node_modules/
 # Build outputs
 dist/
 .next/
+.next-counselor/
+.next-admin/
 out/
 *.tsbuildinfo
 

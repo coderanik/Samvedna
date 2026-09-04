@@ -363,7 +363,7 @@ If you configure Exotel (see below), real phone IVRS and SMS check-ins also work
 
 | Role | Email | Try this |
 |------|-------|----------|
-| Admin | admin@samvedna.demo | `/admin` — user management |
+| Admin | admin@samvedna.demo / **SamvednaAdmin@2024** | `/admin` — fixed credentials · user counts · add counsellors · assign cases |
 | Official | official@samvedna.demo | District dashboard + alerts |
 | Counsellor | counsellor1@samvedna.demo | Cases + Calls for victim1 & victim3 |
 | Counsellor | counsellor2@samvedna.demo | Cases for victim2 & victim4 |
@@ -385,10 +385,13 @@ Run all commands from the `SAMVEDNA` folder.
 | `pnpm install` | Install / update libraries |
 | `pnpm --filter @samvedna/shared-types build` | Build shared types (after install) |
 | `pnpm seed` | Create or refresh demo data |
+| `pnpm ensure-admin` | Create/reset the fixed admin login |
 | `pnpm migrate:check` | Check if database migrations are applied |
 | `pnpm dev` | Start web + API + ML together |
-| `pnpm dev:clean` | Kill ports 3000/4000/8001, then start fresh |
-| `pnpm dev:web` | Start only the website |
+| `pnpm dev:clean` | Kill ports 3000–3002/4000/8001, then start fresh |
+| `pnpm dev:web` | Start only the website (port 3000) |
+| `pnpm dev:counselor` | Counsellor dashboard on **:3001** (`/counselor/cases`) |
+| `pnpm dev:admin` | Admin dashboard on **:3002** (`/admin`) |
 | `pnpm dev:api` | Start only the API |
 | `pnpm dev:ml` | Start only the ML service |
 | `pnpm build` | Build for production |

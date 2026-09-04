@@ -35,6 +35,8 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 });
 
 const DEMO_PASSWORD = "Samvedna@2024";
+/** Fixed admin password (also used by `pnpm ensure-admin`). */
+const ADMIN_PASSWORD = "SamvednaAdmin@2024";
 
 interface SeedUser {
   email: string;
@@ -107,6 +109,17 @@ async function createOrGetUser(user: SeedUser): Promise<string> {
   const found = existing?.users?.find((u) => u.email === user.email);
   if (found) {
     console.log(`  ✓ User exists: ${user.email}`);
+    if (user.role === "admin") {
+      await supabase.auth.admin.updateUserById(found.id, {
+        password: ADMIN_PASSWORD,
+        email_confirm: true,
+        user_metadata: {
+          role: user.role,
+          full_name: user.full_name,
+          preferred_language: user.preferred_language,
+        },
+      });
+    }
     await supabase
       .from("profiles")
       .update({
@@ -119,9 +132,10 @@ async function createOrGetUser(user: SeedUser): Promise<string> {
     return found.id;
   }
 
+  const password = user.role === "admin" ? ADMIN_PASSWORD : DEMO_PASSWORD;
   const { data, error } = await supabase.auth.admin.createUser({
     email: user.email,
-    password: DEMO_PASSWORD,
+    password,
     email_confirm: true,
     user_metadata: {
       role: user.role,

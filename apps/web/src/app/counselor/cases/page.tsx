@@ -50,7 +50,7 @@ export default function CounsellorCasesPage() {
           {cases.map((c) => {
             const victim = c.victim as { full_name?: string } | undefined;
             return (
-              <Link key={c.id} href={`/counsellor/cases/${c.id}`}>
+              <Link key={c.id} href={`/counselor/cases/${c.id}`}>
                 <Card className="transition-shadow hover:shadow-md">
                   <CardHeader className="flex flex-row items-start justify-between pb-2">
                     <div>

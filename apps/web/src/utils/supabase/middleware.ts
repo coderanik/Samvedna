@@ -70,7 +70,11 @@ export async function updateSession(request: NextRequest) {
     if (pathname.startsWith("/victim") && role !== "victim") {
       return NextResponse.redirect(new URL(homeForRole(role), request.url));
     }
-    if (pathname.startsWith("/counsellor") && role !== "counsellor" && role !== "admin") {
+    if (
+      (pathname.startsWith("/counselor") || pathname.startsWith("/counsellor")) &&
+      role !== "counsellor" &&
+      role !== "admin"
+    ) {
       return NextResponse.redirect(new URL(homeForRole(role), request.url));
     }
     if (pathname.startsWith("/official") && role !== "official" && role !== "admin") {
