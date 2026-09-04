@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { homeForRole, resolveUserRole } from "@/lib/auth";
 import type { UserRole } from "@samvedna/shared-types";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/onboard"];
+const PUBLIC_PATHS = ["/login", "/signup", "/onboard", "/auth"];
 const AUTH_PATHS = ["/login", "/signup"];
 
 export async function updateSession(request: NextRequest) {
