@@ -7,8 +7,6 @@
 --
 -- Demo users:
 --   admin@samvedna.demo          — admin          password: SamvednaAdmin@2024
---   official@samvedna.demo       — official       password: Samvedna@2024
---   official2@samvedna.demo      — official       password: Samvedna@2024
 --   counsellor1@samvedna.demo    — counsellor     password: Samvedna@2024
 --   counsellor2@samvedna.demo    — counsellor     password: Samvedna@2024
 --   counsellor3@samvedna.demo    — counsellor     password: Samvedna@2024
