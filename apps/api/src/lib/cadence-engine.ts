@@ -492,6 +492,7 @@ export interface CadenceTickResult {
   relapse_checks: number;
   status_transitions: number;
   sla_breaches: number;
+  counselling_reminders: number;
   degraded: boolean;
 }
 
@@ -550,6 +551,7 @@ export async function processDueOutreach(io?: SocketServer): Promise<CadenceTick
     relapse_checks: 0,
     status_transitions: 0,
     sla_breaches: 0,
+    counselling_reminders: 0,
     degraded: false,
   };
 
@@ -649,6 +651,12 @@ export async function processDueOutreach(io?: SocketServer): Promise<CadenceTick
   result.status_transitions = await detectStatusTransitions(io);
   result.relapse_checks = await sweepResolvedAlertRelapseChecks(io);
   result.sla_breaches = await sweepSlaBreaches();
+  try {
+    const { sweepCounsellingReminders } = await import("./counselling-reminders");
+    result.counselling_reminders = await sweepCounsellingReminders();
+  } catch (err) {
+    console.warn("[counselling-reminders]", err instanceof Error ? err.message : err);
+  }
 
   return result;
 }
@@ -671,9 +679,15 @@ export function startCadenceTick(io?: SocketServer, intervalMs = 60_000): NodeJS
     ticking = true;
     processDueOutreach(io)
       .then((r) => {
-        if (r.sent || r.missed || r.disengagement_alerts || r.sla_breaches) {
+        if (
+          r.sent ||
+          r.missed ||
+          r.disengagement_alerts ||
+          r.sla_breaches ||
+          r.counselling_reminders
+        ) {
           console.log(
-            `[cadence] sent=${r.sent} missed=${r.missed} disengagement=${r.disengagement_alerts} sla=${r.sla_breaches}`
+            `[cadence] sent=${r.sent} missed=${r.missed} disengagement=${r.disengagement_alerts} sla=${r.sla_breaches} reminders=${r.counselling_reminders}`
           );
         }
       })
