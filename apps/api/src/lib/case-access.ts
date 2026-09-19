@@ -4,7 +4,8 @@ import type { UserRole } from "@samvedna/shared-types";
 export interface CaseAccessRow {
   victim_id: string;
   assigned_counsellor_id: string | null;
-  assigned_official_id: string | null;
+  /** @deprecated Official product role removed — kept for legacy rows only. */
+  assigned_official_id?: string | null;
 }
 
 export function canAccessCase(
@@ -35,19 +36,23 @@ export async function fetchCaseForAccess(
   return (data as (CaseAccessRow & { id: string; case_number: string }) | null) ?? null;
 }
 
-/** Case ids the caller is allowed to see, or null for "everything" (admin). */
+/** Case ids the caller is allowed to see, or null for "everything" (admin / official ops). */
 export async function accessibleCaseIds(
   role: UserRole,
   userId: string
 ): Promise<string[] | null> {
   if (role === "admin") return null;
+  // Officials get district/state filter dashboards over the full caseload (read ops).
+  if (role === "official") return null;
 
   const column =
     role === "victim"
       ? "victim_id"
       : role === "counsellor"
         ? "assigned_counsellor_id"
-        : "assigned_official_id";
+        : null;
+
+  if (!column) return [];
 
   const { data } = await supabaseAdmin.from("cases").select("id").eq(column, userId);
   return (data ?? []).map((c) => c.id as string);
