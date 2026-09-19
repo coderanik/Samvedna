@@ -373,23 +373,68 @@ export async function persistRecommendations(
 
 /**
  * Flip `sla_breached` on recommendations whose statutory clock ran out while
- * still open. Called from the cadence tick.
+ * still open, and email counsellor + district once per newly breached row.
+ * Called from the cadence tick.
  */
 export async function sweepSlaBreaches(): Promise<number> {
   const nowIso = new Date().toISOString();
 
-  const { data, degraded } = await safeQuery<{ id: string }[]>(
-    "support_recommendations:sla_sweep",
+  const { data: dueRows, degraded: listDegraded } = await safeQuery<
+    Array<{
+      id: string;
+      case_id: string;
+      type: string;
+      description: string;
+      catalog_code: string | null;
+      statutory_basis: string | null;
+      responsible_authority: string | null;
+      sla_hours: number | null;
+      due_at: string | null;
+    }>
+  >("support_recommendations:sla_due", () =>
+    supabaseAdmin
+      .from("support_recommendations")
+      .select(
+        "id, case_id, type, description, catalog_code, statutory_basis, responsible_authority, sla_hours, due_at"
+      )
+      .lt("due_at", nowIso)
+      .neq("status", "completed")
+      .or("sla_breached.is.null,sla_breached.eq.false")
+      .limit(100)
+  );
+
+  if (listDegraded || !dueRows?.length) {
+    // Still try bulk flip for older schemas
+    const { data } = await safeQuery<{ id: string }[]>(
+      "support_recommendations:sla_sweep",
+      () =>
+        supabaseAdmin
+          .from("support_recommendations")
+          .update({ sla_breached: true })
+          .lt("due_at", nowIso)
+          .neq("status", "completed")
+          .not("sla_breached", "is", true)
+          .select("id")
+    );
+    return data?.length ?? 0;
+  }
+
+  const ids = dueRows.map((r) => r.id);
+  const { degraded: updateDegraded } = await safeQuery(
+    "support_recommendations:sla_mark",
     () =>
       supabaseAdmin
         .from("support_recommendations")
         .update({ sla_breached: true })
-        .lt("due_at", nowIso)
-        .neq("status", "completed")
-        .not("sla_breached", "is", true)
+        .in("id", ids)
         .select("id")
   );
 
-  if (degraded) return 0;
-  return data?.length ?? 0;
+  if (updateDegraded) return 0;
+
+  // Fire emails asynchronously-ish (awaited for reliability in tick)
+  const { notifySlaBreaches } = await import("./notify-sla");
+  await notifySlaBreaches(dueRows);
+
+  return dueRows.length;
 }
