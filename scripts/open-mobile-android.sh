@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 # Root helper: open a macOS Terminal that runs Expo against the Android emulator.
+# Usage:
+#   bash scripts/open-mobile-android.sh              # Expo Go
+#   bash scripts/open-mobile-android.sh --dev-client # Development build (Android push)
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
+
+DEV_CLIENT_FLAG=""
+for arg in "$@"; do
+  case "$arg" in
+    --dev-client|-d) DEV_CLIENT_FLAG="--dev-client" ;;
+  esac
+done
 
 cat > /tmp/start-samvedna-expo.command <<EOF
 #!/bin/zsh
@@ -17,13 +27,18 @@ adb start-server >/dev/null
 if ! adb devices | grep -qE 'emulator-.*device\$'; then
   echo "No emulator running. Starting Medium_Phone_API_36.0…"
   open -a Terminal /tmp/start-samvedna-avd.command 2>/dev/null || true
-  "$REPO/apps/mobile/scripts/run-android.sh" &
+  "$REPO/apps/mobile/scripts/run-android.sh" $DEV_CLIENT_FLAG &
   exit 0
 fi
 
 adb reverse tcp:8081 tcp:8081 || true
 adb reverse tcp:4000 tcp:4000 || true
 adb reverse tcp:8001 tcp:8001 || true
+
+if [ -n "$DEV_CLIENT_FLAG" ]; then
+  echo "Metro (dev client) — press a if the app does not open automatically."
+  exec npx expo start --dev-client --android --clear
+fi
 
 echo "Metro starting — press a if the app does not open automatically."
 exec npx expo start --android --clear
@@ -40,4 +55,8 @@ EOF
 chmod +x /tmp/start-samvedna-avd.command
 
 open -a Terminal /tmp/start-samvedna-expo.command
-echo "Opened Terminal → Expo SDK 57 for Android emulator"
+if [ -n "$DEV_CLIENT_FLAG" ]; then
+  echo "Opened Terminal → Expo SDK 57 development client for Android"
+else
+  echo "Opened Terminal → Expo SDK 57 for Android emulator"
+fi
