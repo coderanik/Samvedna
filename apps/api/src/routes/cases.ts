@@ -4,8 +4,10 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { supabaseAdmin } from "../lib/supabase";
 import { canAccessCase } from "../lib/case-access";
 import { auditMiddleware } from "../lib/audit";
+import { runBailEventPlaybook } from "../lib/bail-playbook";
+import type { Server as SocketServer } from "socket.io";
 
-export function casesRouter() {
+export function casesRouter(io?: SocketServer) {
   const router = Router();
 
   router.get("/", requireAuth, async (req, res, next) => {
@@ -96,10 +98,32 @@ export function casesRouter() {
         supabaseAdmin.from("case_timeline_events").select("*").eq("case_id", caseId).order("created_at"),
       ]);
 
-      const checkins = (checkinsRes.data ?? []).map((c) => {
-        const scores = c.distress_scores as unknown as Array<Record<string, unknown>>;
+      const checkinsRaw = checkinsRes.data ?? [];
+      const checkinIds = checkinsRaw.map((c) => c.id as string).filter(Boolean);
+      const scoreByCheckin = new Map<string, Record<string, unknown>>();
+      if (checkinIds.length) {
+        const { data: scoreRows } = await supabaseAdmin
+          .from("distress_scores")
+          .select("*")
+          .in("checkin_id", checkinIds);
+        for (const row of scoreRows ?? []) {
+          if (row.checkin_id && !scoreByCheckin.has(row.checkin_id)) {
+            scoreByCheckin.set(row.checkin_id, row);
+          }
+        }
+      }
+
+      const checkins = checkinsRaw.map((c) => {
+        // PostgREST may return the 1:1 distress_scores embed as an object OR a one-element array
+        const raw = c.distress_scores as unknown;
+        const embedded = Array.isArray(raw)
+          ? ((raw[0] as Record<string, unknown> | undefined) ?? null)
+          : ((raw as Record<string, unknown> | null) ?? null);
         const { distress_scores: _, ...rest } = c;
-        return { ...rest, distress_score: scores?.[0] ?? null };
+        return {
+          ...rest,
+          distress_score: embedded ?? scoreByCheckin.get(c.id as string) ?? null,
+        };
       });
 
       res.json({
@@ -169,7 +193,7 @@ export function casesRouter() {
 
   router.post("/:id/support", requireAuth, async (req, res, next) => {
     try {
-      if (!["counsellor", "official", "admin"].includes(req.user!.role)) {
+      if (!["counsellor", "admin"].includes(req.user!.role)) {
         return res.status(403).json({ error: "Insufficient permissions" });
       }
 
@@ -200,7 +224,7 @@ export function casesRouter() {
   router.patch(
     "/:id/support/:supportId",
     requireAuth,
-    requireRole("counsellor", "official", "admin"),
+    requireRole("counsellor", "admin"),
     auditMiddleware("support_recommendation_updated", "support_recommendation"),
     async (req, res, next) => {
       try {
@@ -240,6 +264,43 @@ export function casesRouter() {
 
         if (error) return res.status(500).json({ error: "Failed to update recommendation" });
         res.json(data);
+      } catch (err) {
+        next(err);
+      }
+    }
+  );
+
+  /**
+   * PATCH /cases/:id/bail — Grant accused bail → witness intimidation auto-playbook.
+   */
+  router.patch(
+    "/:id/bail",
+    requireAuth,
+    requireRole("counsellor", "admin", "official"),
+    auditMiddleware("bail_granted", "case"),
+    async (req, res, next) => {
+      try {
+        const caseId = String(req.params.id);
+        const { data: caseRow } = await supabaseAdmin
+          .from("cases")
+          .select("victim_id, assigned_counsellor_id, assigned_official_id")
+          .eq("id", caseId)
+          .maybeSingle();
+        if (!caseRow) return res.status(404).json({ error: "Case not found" });
+        if (!canAccessCase(req.user!.role, req.user!.id, caseRow)) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+
+        const result = await runBailEventPlaybook({
+          caseId,
+          actorId: req.user!.id,
+          io,
+          source: "case_patch",
+        });
+        if ("error" in result) {
+          return res.status(400).json({ error: result.error });
+        }
+        res.json(result);
       } catch (err) {
         next(err);
       }
