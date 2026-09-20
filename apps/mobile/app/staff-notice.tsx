@@ -15,7 +15,7 @@ export default function StaffNoticeScreen() {
         <Text style={styles.body}>
           This mobile app is for victims only. Your role is{" "}
           <Text style={{ fontWeight: "700" }}>{profile?.role ?? "staff"}</Text>.
-          Please use the Samvedna web app for counsellor, official, or admin work.
+          Please use the Samvedna web app for counsellor or admin work.
         </Text>
         <PrimaryButton label="Sign out" onPress={() => signOut()} />
       </View>
