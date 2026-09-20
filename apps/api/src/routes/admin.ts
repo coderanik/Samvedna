@@ -2,8 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { scheduleEventOutreach } from "../lib/cadence-engine";
 import { getRedactionStats } from "../lib/redact";
+import { runBailEventPlaybook } from "../lib/bail-playbook";
 import type { Server as SocketServer } from "socket.io";
 import crypto from "crypto";
 
@@ -21,7 +21,6 @@ export function adminRouter(io?: SocketServer) {
       const byRole = {
         victim: list.filter((p) => p.role === "victim").length,
         counsellor: list.filter((p) => p.role === "counsellor").length,
-        official: list.filter((p) => p.role === "official").length,
         admin: list.filter((p) => p.role === "admin").length,
       };
 
@@ -43,7 +42,6 @@ export function adminRouter(io?: SocketServer) {
         total_users: list.length,
         victims: byRole.victim,
         counsellors: byRole.counsellor,
-        officials: byRole.official,
         admins: byRole.admin,
         cases: casesCount ?? 0,
         unassigned_cases: unassignedCases ?? 0,
@@ -71,12 +69,12 @@ export function adminRouter(io?: SocketServer) {
     email: z.string().email(),
     password: z.string().min(8),
     full_name: z.string().min(2),
-    role: z.enum(["counsellor", "official", "victim"]),
+    role: z.enum(["counsellor", "victim"]),
     preferred_language: z.enum(["en", "hi", "ta"]).default("en"),
     phone_number: z.string().optional().nullable(),
   });
 
-  /** Admin creates counsellor / official / victim accounts. */
+  /** Admin creates counsellor / victim accounts. */
   router.post("/users", requireAuth, requireRole("admin"), async (req, res, next) => {
     try {
       const body = createUserSchema.parse(req.body);
@@ -120,7 +118,6 @@ export function adminRouter(io?: SocketServer) {
 
   const assignSchema = z.object({
     assigned_counsellor_id: z.string().uuid().optional().nullable(),
-    assigned_official_id: z.string().uuid().optional().nullable(),
   });
 
   router.patch("/cases/:id/assign", requireAuth, requireRole("admin"), async (req, res, next) => {
@@ -144,7 +141,7 @@ export function adminRouter(io?: SocketServer) {
   router.post(
     "/onboarding-token",
     requireAuth,
-    requireRole("counsellor", "official", "admin"),
+    requireRole("counsellor", "admin"),
     async (req, res, next) => {
       try {
         const body = tokenSchema.parse(req.body);
@@ -193,78 +190,21 @@ export function adminRouter(io?: SocketServer) {
   });
 
   /**
-   * POST /admin/simulate-bail — Demo: grants bail to accused, schedules event outreach,
-   * recommends witness protection if available, records timeline event.
+   * POST /admin/simulate-bail — Demo bail grant → witness intimidation auto-playbook.
    */
   router.post("/simulate-bail", requireAuth, requireRole("admin"), async (req, res, next) => {
     try {
       const body = simulateBailSchema.parse(req.body);
-      const today = new Date().toISOString().split("T")[0];
-
-      // Update case with bail granted
-      const { data: caseRow, error: updateError } = await supabaseAdmin
-        .from("cases")
-        .update({
-          accused_bail_status: "granted",
-          bail_granted_date: today,
-        })
-        .eq("id", body.case_id)
-        .select(
-          "id, case_number, status, next_hearing_date, relief_due_date, relief_amount_sanctioned, relief_amount_disbursed, assigned_counsellor_id"
-        )
-        .single();
-
-      if (updateError || !caseRow) {
-        return res.status(404).json({ error: "Case not found or update failed" });
-      }
-
-      // Schedule event outreach if cadence engine is available
-      const outreachScheduled = await scheduleEventOutreach(caseRow, io);
-
-      // Record timeline event
-      await supabaseAdmin
-        .from("case_timeline_events")
-        .insert({
-          case_id: body.case_id,
-          event_type: "bail_granted",
-          description: `Demo: Accused released on bail as of ${today} — witness protection and safety checks scheduled`,
-          created_by: caseRow.assigned_counsellor_id ?? null,
-        })
-        .select("id");
-
-      // Recommend POA_WITNESS_PROTECT intervention if catalog exists
-      // (We won't fail if intervention_catalog isn't available)
-      const { data: catalogEntry } = await supabaseAdmin
-        .from("intervention_catalog")
-        .select("*")
-        .eq("code", "POA_WITNESS_PROTECT")
-        .maybeSingle();
-
-      let interventionRecommended = false;
-      if (catalogEntry) {
-        const { error: recError } = await supabaseAdmin
-          .from("support_recommendations")
-          .insert({
-            case_id: body.case_id,
-            recommendation_type: "POA_WITNESS_PROTECT",
-            priority: "high",
-            reason: "Accused released on bail — witness protection measures recommended",
-            status: "pending",
-            created_by: caseRow.assigned_counsellor_id ?? null,
-          });
-        interventionRecommended = !recError;
-      }
-
-      res.json({
-        case_id: body.case_id,
-        case_number: caseRow.case_number,
-        accused_bail_status: "granted",
-        bail_granted_date: today,
-        outreach_scheduled: outreachScheduled.length,
-        intervention_recommended: interventionRecommended ? "POA_WITNESS_PROTECT" : null,
-        honesty:
-          "Demo fast-forward: bail granted, safety outreach scheduled, witness protection recommended if catalog available.",
+      const result = await runBailEventPlaybook({
+        caseId: body.case_id,
+        actorId: req.user!.id,
+        io,
+        source: "admin_simulate",
       });
+      if ("error" in result) {
+        return res.status(404).json({ error: result.error });
+      }
+      res.json(result);
     } catch (err) {
       next(err);
     }
