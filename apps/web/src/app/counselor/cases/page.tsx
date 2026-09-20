@@ -6,7 +6,9 @@ import { createClient } from "@/utils/supabase/client";
 import { RiskBadge, TrendBadge } from "@/components/risk-badge";
 import { apiFetch } from "@/lib/utils";
 import { IncomingCallPanel } from "@/components/incoming-call-panel";
+import { CounsellorChatRequestPanel } from "@/components/counsellor-chat-request-panel";
 import { GoneQuietRail, type GoneQuietItem } from "@/components/gone-quiet-rail";
+import { CounsellorShell } from "@/components/counsellor-shell";
 import type { PrioritisedCase } from "@samvedna/shared-types";
 
 export default function CounsellorCasesPage() {
@@ -80,43 +82,45 @@ export default function CounsellorCasesPage() {
     );
   }, [cases, query]);
 
-  async function logout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    window.location.href = "/login";
-  }
-
   return (
-    <div className="theme-command min-h-screen">
-      <header className="flex items-center justify-between border-b border-hairline px-6 py-4">
-        <div>
-          <p className="label-caps">Counsellor command</p>
-          <h1 className="font-mono text-lg text-cyan">Priority queue</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-cmd">{name}</span>
-          {userId && token ? (
-            <IncomingCallPanel userId={userId} token={token} onRefresh={load} />
-          ) : null}
-          <button type="button" onClick={logout} className="text-xs text-faint underline">
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      <div className="mx-auto grid max-w-[1400px] gap-0 lg:grid-cols-[240px_1fr]">
-        <aside className="border-r border-hairline bg-elevated">
-          <div className="border-b border-hairline px-3 py-3">
-            <p className="label-caps text-violet">Gone Quiet</p>
-            <p className="mt-1 text-[11px] text-faint">
+    <CounsellorShell
+      userName={name}
+      userId={userId}
+      token={token}
+      actions={
+        userId && token ? (
+          <IncomingCallPanel userId={userId} token={token} onRefresh={load} />
+        ) : null
+      }
+    >
+      {userId && token ? <CounsellorChatRequestPanel userId={userId} token={token} /> : null}
+      <div className="grid gap-0 lg:grid-cols-[240px_1fr]">
+        <aside className="border-b border-[var(--sanctuary-sand)] bg-[var(--sanctuary-sand)]/25 lg:min-h-[calc(100vh-3.5rem)] lg:border-b-0 lg:border-r">
+          <div className="border-b border-[var(--sanctuary-sand)] px-4 py-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--sanctuary-teal)]">
+              Gone Quiet
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-[var(--sanctuary-ink-2)]">
               Disengagement is the highest-risk signal in the system.
             </p>
           </div>
           <GoneQuietRail items={goneQuiet} />
         </aside>
 
-        <main className="px-6 py-6">
-          <div className="mb-6 grid grid-cols-2 gap-px bg-hairline sm:grid-cols-5">
+        <main className="px-4 py-6 sm:px-6">
+          <header className="mb-6 space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--sanctuary-ink-3)]">
+              Counsellor home
+            </p>
+            <h1 className="font-display text-2xl font-semibold tracking-tight text-[var(--sanctuary-ink)] sm:text-3xl">
+              Priority queue
+            </h1>
+            <p className="max-w-xl text-sm text-[var(--sanctuary-ink-2)]">
+              Triage by distress, trend, and silence — survivors never see these scores.
+            </p>
+          </header>
+
+          <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[var(--sanctuary-sand)] bg-[var(--sanctuary-sand)] sm:grid-cols-5">
             {[
               { label: "Critical", value: kpis.critical },
               { label: "High", value: kpis.high },
@@ -124,41 +128,53 @@ export default function CounsellorCasesPage() {
               { label: "Esc ≥70", value: kpis.escalating },
               { label: "Assigned", value: kpis.total },
             ].map((k) => (
-              <div key={k.label} className="bg-elevated px-4 py-3">
-                <p className="font-mono text-2xl text-cyan">{k.value}</p>
-                <p className="label-caps mt-1">{k.label}</p>
+              <div key={k.label} className="bg-[var(--sanctuary-canvas)] px-4 py-3">
+                <p className="font-display text-2xl tabular-nums text-[var(--sanctuary-teal)]">
+                  {k.value}
+                </p>
+                <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--sanctuary-ink-3)]">
+                  {k.label}
+                </p>
               </div>
             ))}
           </div>
 
-          <div className="mb-4 flex items-center gap-3">
+          <div className="mb-4">
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search cases…  /"
-              className="w-full max-w-sm border border-hairline bg-raised px-3 py-2 font-mono text-sm text-ink outline-none focus:border-cyan"
+              placeholder="Search cases…"
+              className="w-full max-w-sm rounded-md border border-[var(--sanctuary-sand)] bg-[var(--sanctuary-canvas)] px-3 py-2 text-sm text-[var(--sanctuary-ink)] outline-none focus:border-[var(--sanctuary-teal)]"
             />
           </div>
 
-          {loading && <p className="text-sm text-muted-cmd">Loading queue…</p>}
+          {loading && (
+            <p className="text-sm text-[var(--sanctuary-ink-2)]">Loading queue…</p>
+          )}
           {!loading && filtered.length === 0 && (
-            <p className="text-sm text-muted-cmd">
-              No assigned cases yet. Ask an admin to assign survivors to you.
-            </p>
+            <div className="rounded-lg border border-dashed border-[var(--sanctuary-sand)] bg-[var(--sanctuary-sand)]/20 px-6 py-10 text-center">
+              <p className="font-display text-lg text-[var(--sanctuary-ink)]">No cases assigned yet</p>
+              <p className="mt-2 text-sm text-[var(--sanctuary-ink-2)]">
+                Ask an admin to assign survivors to your caseload.
+              </p>
+            </div>
           )}
 
-          <ul className="divide-y divide-hairline border-y border-hairline">
+          <ul className="divide-y divide-[var(--sanctuary-sand)] border-y border-[var(--sanctuary-sand)]">
             {filtered.map((c) => (
-              <li key={c.id} className="flex h-8 items-center gap-4 px-1 text-sm hover:bg-raised">
-                <span className="w-10 shrink-0 font-mono text-faint">
+              <li
+                key={c.id}
+                className="flex min-h-10 flex-wrap items-center gap-3 px-1 py-2 text-sm hover:bg-[var(--sanctuary-sand)]/30 sm:flex-nowrap sm:gap-4"
+              >
+                <span className="w-10 shrink-0 font-mono text-xs text-[var(--sanctuary-ink-3)]">
                   {c.priority_score ?? "—"}
                 </span>
                 <Link
                   href={`/counselor/cases/${c.id}`}
-                  className="min-w-0 flex-1 truncate font-mono text-cyan hover:underline"
+                  className="min-w-0 flex-1 truncate font-medium text-[var(--sanctuary-teal)] hover:underline"
                 >
                   {c.anonymised_label ?? c.case_number}
-                  <span className="ml-2 text-faint">
+                  <span className="ml-2 font-normal text-[var(--sanctuary-ink-3)]">
                     {c.case_number} · {c.case_type}
                   </span>
                 </Link>
@@ -167,30 +183,31 @@ export default function CounsellorCasesPage() {
                   score={c.latest_score?.score}
                 />
                 <TrendBadge trend={c.trend_direction} />
-                <span className="hidden w-10 font-mono text-xs text-muted-cmd sm:inline">
+                <span className="hidden w-10 font-mono text-xs text-[var(--sanctuary-ink-2)] sm:inline">
                   {c.escalation_risk_7d ?? "—"}
                 </span>
-                {"attrition_risk" in c && (c as { attrition_risk?: number }).attrition_risk != null && (
-                  <span
-                    className="hidden w-8 font-mono text-xs text-violet sm:inline"
-                    title="Case attrition risk"
-                  >
-                    A{(c as { attrition_risk?: number }).attrition_risk}
-                  </span>
-                )}
-                <span className="hidden max-w-[140px] truncate text-xs text-faint md:inline">
+                {"attrition_risk" in c &&
+                  (c as { attrition_risk?: number }).attrition_risk != null && (
+                    <span
+                      className="hidden w-8 font-mono text-xs text-[var(--sanctuary-sage)] sm:inline"
+                      title="Case attrition risk"
+                    >
+                      A{(c as { attrition_risk?: number }).attrition_risk}
+                    </span>
+                  )}
+                <span className="hidden max-w-[140px] truncate text-xs text-[var(--sanctuary-ink-3)] md:inline">
                   {c.recommended_action ?? "—"}
                 </span>
               </li>
             ))}
           </ul>
 
-          <p className="mt-4 text-[11px] text-faint">
+          <p className="mt-4 text-[11px] text-[var(--sanctuary-ink-3)]">
             Escalation and attrition are decision-support estimates — not clinical diagnoses. Scores
             are never shown to survivors.
           </p>
         </main>
       </div>
-    </div>
+    </CounsellorShell>
   );
 }
