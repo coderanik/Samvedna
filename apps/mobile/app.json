@@ -32,22 +32,57 @@
         "CAMERA",
         "RECORD_AUDIO",
         "INTERNET",
-        "ACCESS_NETWORK_STATE"
+        "ACCESS_NETWORK_STATE",
+        "POST_NOTIFICATIONS",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "samvedna",
+              "host": "onboard",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
       ]
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      "expo-dev-client",
       [
         "expo-camera",
         {
           "cameraPermission": "Allow Samvedna to use the camera for counsellor video calls."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0F3D3E",
+          "sounds": []
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c988df8a-0eca-4f20-bafc-032cf8a735f0"
+      }
     }
   }
 }
