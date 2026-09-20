@@ -63,6 +63,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           loadProfile(data.session.user.id).finally(() => {
             if (mounted) setLoading(false);
           });
+          import("@/lib/push")
+            .then(({ registerForPushNotificationsAsync }) =>
+              registerForPushNotificationsAsync(data.session!.access_token)
+            )
+            .catch((err) => console.warn("[push]", err));
         } else {
           setLoading(false);
         }
@@ -75,6 +80,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(next);
       if (next?.user?.id) {
         loadProfile(next.user.id);
+        // Register push after auth (Sprint 4)
+        import("@/lib/push")
+          .then(({ registerForPushNotificationsAsync }) =>
+            registerForPushNotificationsAsync(next.access_token)
+          )
+          .catch((err) => console.warn("[push]", err));
       } else {
         setProfile(null);
       }
