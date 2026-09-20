@@ -11,7 +11,10 @@ import {
   YAxis,
 } from "recharts";
 import { AppShell } from "@/components/app-shell";
-import { AiVoiceCall } from "@/components/ai-voice-call";
+import {
+  ElevenLabsVoiceCall,
+  type ElevenLabsCallCompletePayload,
+} from "@/components/elevenlabs-voice-call";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/utils/supabase/client";
@@ -207,13 +210,19 @@ export default function VictimDashboardPage() {
     }
   }
 
-  async function onCallComplete(transcript: string, durationSeconds: number) {
+  async function onCallComplete(payload: ElevenLabsCallCompletePayload) {
     setCalling(false);
     try {
       await apiFetch(`/victim/instant-calls/${instantId}/complete`, {
         method: "POST",
         token,
-        body: JSON.stringify({ transcript, duration_seconds: durationSeconds }),
+        body: JSON.stringify({
+          transcript: payload.transcript,
+          duration_seconds: payload.duration_seconds,
+          emotion_hints: payload.emotion_hints,
+          keywords: payload.keywords,
+          conversation_id: payload.conversation_id,
+        }),
       });
       setDoneMsg("Your call notes are saved. A private summary appears below.");
       await load(token);
@@ -222,14 +231,11 @@ export default function VictimDashboardPage() {
     }
   }
 
-  if (calling && sessionId && token) {
+  if (calling && token) {
     return (
       <AppShell role="victim" userName={name}>
-        <AiVoiceCall
-          token={token}
+        <ElevenLabsVoiceCall
           locale={locale}
-          sessionId={sessionId}
-          persistViaCallsApi={false}
           onComplete={onCallComplete}
           onCancel={() => setCalling(false)}
         />
@@ -388,12 +394,12 @@ export default function VictimDashboardPage() {
               <CardTitle className="font-display text-xl">Talk to an Agent Now</CardTitle>
               <CardDescription>
                 {twilioLive
-                  ? "We call your registered phone. Mann-Mitra listens, replies, and saves a private summary."
-                  : "Instant conversational AI with Mann-Mitra. Your words stay private and update your wellbeing pulse."}
+                  ? "We can call your registered phone, or open a live ElevenLabs voice session in the browser."
+                  : "Live ElevenLabs voice with Mann-Mitra. Speak naturally — your words stay private and update your wellbeing pulse."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button size="lg" className="w-full" onClick={() => startInstantCall("auto")} disabled={!token}>
+              <Button size="lg" className="w-full" onClick={() => startInstantCall("browser")} disabled={!token}>
                 <Phone className="mr-2 h-4 w-4" />
                 Talk to an Agent Now
               </Button>
@@ -402,10 +408,10 @@ export default function VictimDashboardPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => startInstantCall("browser")}
+                    onClick={() => startInstantCall("twilio")}
                     disabled={!token}
                   >
-                    Use in-browser voice instead
+                    Call my phone instead
                   </Button>
                 )}
                 {caps?.twilio_outbound && !twilioLive && (
@@ -420,11 +426,8 @@ export default function VictimDashboardPage() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                {twilioLive
-                  ? "LIVE · Twilio Conversational Voice → your phone"
-                  : caps?.twilio_outbound
-                    ? `Twilio ${caps.label}. Add phone on Profile + set TWILIO_WEBHOOK_BASE_URL (HTTPS) for phone calls. Browser voice is LIVE.`
-                    : "LIVE in-browser Mann-Mitra. Configure TWILIO_* for phone Conversational Voice."}
+                LIVE · ElevenLabs Conversational Voice in browser
+                {twilioLive ? " · phone call also available" : ""}
               </p>
               <div className="flex flex-wrap gap-3 text-sm">
                 <Link href="/victim/chatbot" className="text-primary underline-offset-4 hover:underline">
