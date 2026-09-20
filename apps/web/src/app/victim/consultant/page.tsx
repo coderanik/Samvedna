@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/utils/supabase/client";
 import { apiFetch } from "@/lib/utils";
-import { Calendar, UserRound } from "lucide-react";
+import { Calendar, Check, UserRound } from "lucide-react";
 
 type Consultant = {
   id: string;
@@ -22,6 +21,7 @@ type Consultant = {
 type ConsultantPayload = {
   allotted: { assignment_id: string; assigned_at: string; consultant: Consultant } | null;
   pending_message: string | null;
+  consultant_count: number;
   directory: Consultant[];
   meets: Array<{
     id: string;
@@ -32,6 +32,7 @@ type ConsultantPayload = {
   }>;
   updates: Array<{ id: string; event_type: string; message: string; created_at: string }>;
   browse_note: string;
+  can_choose?: boolean;
 };
 
 type Slot = { id: string; starts_at: string; ends_at: string };
@@ -43,6 +44,7 @@ export default function VictimConsultantPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [error, setError] = useState("");
   const [booking, setBooking] = useState(false);
+  const [choosingId, setChoosingId] = useState<string | null>(null);
 
   async function refresh(accessToken: string) {
     const d = await apiFetch<ConsultantPayload>("/victim/consultant", { token: accessToken });
@@ -54,6 +56,8 @@ export default function VictimConsultantPage() {
       } catch {
         setSlots([]);
       }
+    } else {
+      setSlots([]);
     }
   }
 
@@ -79,6 +83,24 @@ export default function VictimConsultantPage() {
     }
     init();
   }, []);
+
+  async function choose(consultantId: string) {
+    if (!token) return;
+    setChoosingId(consultantId);
+    setError("");
+    try {
+      await apiFetch("/victim/consultant/choose", {
+        method: "POST",
+        token,
+        body: JSON.stringify({ consultant_id: consultantId }),
+      });
+      await refresh(token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save your choice");
+    } finally {
+      setChoosingId(null);
+    }
+  }
 
   async function book(slotId: string) {
     if (!token) return;
@@ -126,6 +148,8 @@ export default function VictimConsultantPage() {
   }
 
   const allotted = data?.allotted?.consultant;
+  const count = data?.consultant_count ?? data?.directory?.length ?? 0;
+  const allottedId = allotted?.id;
 
   return (
     <AppShell role="victim" userName={name}>
@@ -133,7 +157,9 @@ export default function VictimConsultantPage() {
         <header>
           <h1 className="font-display text-xl font-semibold sm:text-2xl">Consultant</h1>
           <p className="text-xs text-muted-foreground sm:text-sm">
-            Your allotted counsellor appears after your first check-in score.
+            {count > 0
+              ? `${count} consultant${count === 1 ? "" : "s"} available — choose who you want to work with.`
+              : "Your counsellor will appear here once the directory is ready."}
           </p>
         </header>
 
@@ -143,22 +169,7 @@ export default function VictimConsultantPage() {
           </p>
         )}
 
-        {!allotted ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display text-xl">Pending allotment</CardTitle>
-              <CardDescription>
-                {data?.pending_message ??
-                  "Your consultant will be assigned once your first check-in is complete."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild variant="outline">
-                <Link href="/victim/chatbot">Start a check-in chat</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
+        {allotted ? (
           <Card className="border-primary/20">
             <CardHeader className="flex flex-col gap-4 space-y-0 sm:flex-row sm:items-start">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10">
@@ -170,6 +181,9 @@ export default function VictimConsultantPage() {
                 )}
               </div>
               <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium uppercase tracking-wide text-primary">
+                  Your consultant
+                </p>
                 <CardTitle className="font-display text-lg sm:text-xl">{allotted.name}</CardTitle>
                 <CardDescription>{allotted.specialization}</CardDescription>
                 <p className="mt-2 text-sm text-muted-foreground">{allotted.bio}</p>
@@ -211,24 +225,87 @@ export default function VictimConsultantPage() {
               )}
             </CardContent>
           </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-display text-xl">Choose your consultant</CardTitle>
+              <CardDescription>
+                {data?.pending_message ??
+                  (count > 0
+                    ? `Choose from ${count} available consultants below.`
+                    : "No consultants are listed yet.")}
+              </CardDescription>
+            </CardHeader>
+          </Card>
         )}
 
         <section className="space-y-3">
-          <h2 className="font-display text-lg font-semibold">Browse consultants</h2>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-display text-lg font-semibold">
+              {allotted ? "Change consultant" : "Available consultants"}
+            </h2>
+            {count > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {count} listed
+              </p>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">{data?.browse_note}</p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {(data?.directory ?? []).map((c) => (
-              <Card key={c.id}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">{c.name}</CardTitle>
-                  <CardDescription>{c.specialization}</CardDescription>
-                </CardHeader>
-                <CardContent className="text-xs text-muted-foreground">
-                  {c.bio ?? "Trauma-informed support for atrocity survivors."}
-                </CardContent>
-              </Card>
-            ))}
+            {(data?.directory ?? []).map((c) => {
+              const isSelected = allottedId === c.id;
+              return (
+                <Card
+                  key={c.id}
+                  className={isSelected ? "border-primary/40 bg-primary/[0.03]" : undefined}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="mb-2 flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-primary/10">
+                      {c.photo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={c.photo_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <UserRound className="h-5 w-5 text-primary" />
+                      )}
+                    </div>
+                    <CardTitle className="text-base">{c.name}</CardTitle>
+                    <CardDescription>{c.specialization}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-xs text-muted-foreground">
+                      {c.bio ?? "Trauma-informed support for atrocity survivors."}
+                    </p>
+                    {c.availability_note && (
+                      <p className="text-xs text-muted-foreground">{c.availability_note}</p>
+                    )}
+                    <Button
+                      size="sm"
+                      variant={isSelected ? "secondary" : "default"}
+                      disabled={isSelected || choosingId === c.id}
+                      onClick={() => choose(c.id)}
+                      className="w-full"
+                    >
+                      {isSelected ? (
+                        <>
+                          <Check className="mr-1.5 h-3.5 w-3.5" />
+                          Selected
+                        </>
+                      ) : choosingId === c.id ? (
+                        "Saving…"
+                      ) : allotted ? (
+                        "Switch to this consultant"
+                      ) : (
+                        "Choose"
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
+          {(data?.directory ?? []).length === 0 && (
+            <p className="text-sm text-muted-foreground">No consultants in the directory yet.</p>
+          )}
         </section>
 
         <section className="space-y-3">
