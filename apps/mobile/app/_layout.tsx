@@ -14,14 +14,15 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (loading) return;
-    const inAuth = segments[0] === "login" || segments[0] === "signup";
+    const root = String(segments[0] ?? "");
+    const inAuth = ["login", "signup", "onboard", "auth"].includes(root);
 
     if (!session && !inAuth) {
       router.replace("/login");
       return;
     }
 
-    if (session && inAuth) {
+    if (session && (root === "login" || root === "signup")) {
       router.replace("/(tabs)/home");
       return;
     }
@@ -60,6 +61,7 @@ export default function RootLayout() {
             <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
               <Stack.Screen name="login" />
               <Stack.Screen name="signup" />
+              <Stack.Screen name="onboard/[token]" />
               <Stack.Screen name="(tabs)" />
               <Stack.Screen
                 name="metal-ai"
