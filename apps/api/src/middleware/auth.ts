@@ -6,6 +6,8 @@ export interface AuthUser {
   id: string;
   email: string;
   role: UserRole;
+  user_metadata?: Record<string, unknown>;
+  full_name?: string;
 }
 
 declare global {
@@ -44,6 +46,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       id: data.user.id,
       email: data.user.email ?? "",
       role: profile.role as UserRole,
+      user_metadata: (data.user.user_metadata ?? {}) as Record<string, unknown>,
+      full_name: profile.full_name ?? undefined,
     };
 
     next();
