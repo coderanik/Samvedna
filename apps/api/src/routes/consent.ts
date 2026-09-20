@@ -111,7 +111,7 @@ export function consentRouter() {
   router.get(
     "/case/:caseId",
     requireAuth,
-    requireRole("counsellor", "official", "admin"),
+    requireRole("counsellor", "admin"),
     async (req, res, next) => {
       try {
         const caseRow = await fetchCaseForAccess(req.params.caseId);
