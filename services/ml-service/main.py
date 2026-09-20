@@ -18,10 +18,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
+import numpy as np
 
-# Import new modules
 from forecast import forecast_trajectory
 from prosody import analyse_voice
+from escalation_model import predict_escalation
 
 load_dotenv()
 load_dotenv("../../.env")
@@ -451,6 +452,7 @@ async def forecast_distress(req: ForecastRequest):
     
     Uses Holt exponential smoothing when ≥4 points and statsmodels available,
     falls back to linear+EWMA or rule-based for fewer points.
+    Blends sklearn synthetic logistic escalation when features provided.
     """
     try:
         result = forecast_trajectory(
@@ -458,6 +460,25 @@ async def forecast_distress(req: ForecastRequest):
             horizon_days=req.horizon_days,
             features=req.features,
         )
+        feats = dict(req.features or {})
+        if req.scores:
+            latest = float(req.scores[-1].get("score", 50))
+            feats.setdefault("latest_score", latest)
+            vals = [float(s.get("score", 50)) for s in req.scores]
+            if len(vals) >= 3:
+                feats.setdefault("slope_3", vals[-1] - vals[-3])
+                feats.setdefault("volatility", float(np.std(vals[-5:])))
+            elif len(vals) == 2:
+                feats.setdefault("slope_3", vals[-1] - vals[-2])
+        esc = predict_escalation(feats)
+        # Blend trajectory crisis_prob with sklearn risk
+        traj_p = float(result.get("crisis_probability") or 0)
+        sk_p = float(esc.get("escalation_probability") or 0)
+        blended = 0.45 * traj_p + 0.55 * sk_p
+        result["crisis_probability"] = round(blended, 3)
+        result["escalation_model"] = esc
+        result["risk_7d"] = int(round(blended * 100))
+        result["disclaimer"] = esc.get("honesty_note") or result.get("disclaimer")
         return result
     except Exception as e:
         return {
@@ -466,6 +487,12 @@ async def forecast_distress(req: ForecastRequest):
             "crisis_probability": None,
             "method": "error",
         }
+
+
+@app.post("/escalation")
+async def escalation_only(req: dict):
+    """Direct sklearn escalation probability from feature dict."""
+    return predict_escalation(req or {})
 
 
 @app.post("/chat")
@@ -482,7 +509,8 @@ async def chat_response(req: ChatRequest):
 Respond in {lang_name}. If the user writes in code-mixed language (Hinglish/Tanglish), match their style naturally.
 Ask ONE gentle question at a time. Never interrogate. Never diagnose. Be empathetic and culturally sensitive.
 Keep responses under 3 sentences. This is a support check-in, not an emergency service.
-If the person seems in immediate danger, gently encourage contacting 112 or KIRAN 1800-599-0019 / Tele-MANAS 14416 / NHAA 14566."""
+If the person seems in immediate danger, gently encourage contacting 112 or KIRAN 1800-599-0019 / Tele-MANAS 14416 / NHAA 14566.
+After the survivor has shared a few turns (roughly 3+ exchanges), once — and only once unless they change the subject — gently offer to connect them with their allotted human counsellor in this same chat. Example: "Would it help if I connected you with your counsellor here? They can join this conversation." Do not pressure. If they decline, stay with them as Mann-Mitra."""
 
     try:
         history = []
