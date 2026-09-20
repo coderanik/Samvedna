@@ -210,6 +210,9 @@ export function instantCallsRouter(io: SocketServer) {
         .object({
           transcript: z.string().optional(),
           duration_seconds: z.number().int().optional(),
+          emotion_hints: z.array(z.string()).optional(),
+          keywords: z.array(z.string()).optional(),
+          conversation_id: z.string().nullable().optional(),
         })
         .parse(req.body);
 
@@ -255,6 +258,14 @@ export function instantCallsRouter(io: SocketServer) {
       if (instant.status === "completed") return res.json(instant);
 
       const transcript = (body.transcript ?? instant.transcript ?? "").trim();
+      const emotionLine =
+        body.emotion_hints?.length
+          ? `\n[Voice emotions detected: ${body.emotion_hints.join(", ")}]`
+          : "";
+      const keywordLine =
+        body.keywords?.length ? `\n[Keywords: ${body.keywords.join(", ")}]` : "";
+      const scoringTranscript = `${transcript}${emotionLine}${keywordLine}`.trim();
+
       const { data: profile } = await supabaseAdmin
         .from("profiles")
         .select("preferred_language")
@@ -262,16 +273,16 @@ export function instantCallsRouter(io: SocketServer) {
         .single();
 
       const summary = await summariseCallTranscript(
-        transcript,
+        scoringTranscript || transcript,
         profile?.preferred_language ?? "en"
       );
 
       let distressScoreId: string | null = null;
-      if (transcript && instant.case_id) {
+      if (scoringTranscript && instant.case_id) {
         const scored = await createCheckinAndScore({
           caseId: instant.case_id,
           victimId: userId,
-          transcript,
+          transcript: scoringTranscript,
           channel: "ai_voice",
           io,
         });
