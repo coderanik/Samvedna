@@ -1,5 +1,6 @@
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
+/** Active product roles include judiciary desk `official`. */
 export type UserRole = "victim" | "counsellor" | "official" | "admin";
 
 export type CaseStatus =
@@ -61,6 +62,7 @@ export interface Case {
   case_type: string;
   status: CaseStatus;
   assigned_counsellor_id: string | null;
+  /** @deprecated Legacy column — no longer assigned in product flows. */
   assigned_official_id: string | null;
   district: string;
   state: string;
@@ -224,6 +226,8 @@ export interface DashboardSummary {
     escalation_risk_7d?: number | null;
   }>;
   scope?: "district" | "state" | "national";
+  sla_breaches?: number;
+  filters?: { state: string | null; district: string | null };
 }
 
 export interface PrioritisedCase extends Case {
@@ -340,6 +344,19 @@ export interface IncomingCallEvent {
   case_number: string;
   victim_name: string;
   call_type: CallType;
+}
+
+/** Fired when a new victim finishes onboarding and is allotted to a counsellor. */
+export interface VictimAssignedEvent {
+  case_id: string;
+  case_number: string;
+  victim_id: string;
+  victim_name: string;
+  consultant_id: string;
+  consultant_name: string;
+  distress_score: number | null;
+  risk_level: RiskLevel | null;
+  message: string;
 }
 
 export const PRIORITY_CASE_TYPES = [
