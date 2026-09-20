@@ -204,10 +204,14 @@ export function dashboardRouter() {
   router.get(
     "/summary",
     requireAuth,
-    requireRole("official", "admin"),
+    requireRole("admin", "counsellor", "official"),
     async (req, res, next) => {
       try {
-        const scope = (req.query.scope as string) || (req.user!.role === "admin" ? "national" : "district");
+        const scope =
+          (req.query.scope as string) ||
+          (req.user!.role === "admin" || req.user!.role === "official"
+            ? "national"
+            : "district");
         const stateFilter = (req.query.state as string) || undefined;
         const districtFilter = (req.query.district as string) || undefined;
 
@@ -215,12 +219,15 @@ export function dashboardRouter() {
           .from("cases")
           .select("id, case_number, district, state, victim_id, status, case_type");
 
-        if (req.user!.role === "official") {
-          casesQuery = casesQuery.eq("assigned_official_id", req.user!.id);
-        } else if (scope === "state" && stateFilter) {
-          casesQuery = casesQuery.eq("state", stateFilter);
-        } else if (scope === "district" && districtFilter) {
-          casesQuery = casesQuery.eq("district", districtFilter);
+        if (req.user!.role === "counsellor") {
+          casesQuery = casesQuery.eq("assigned_counsellor_id", req.user!.id);
+        } else {
+          // admin + official: geo filters
+          if (stateFilter) casesQuery = casesQuery.eq("state", stateFilter);
+          if (districtFilter) casesQuery = casesQuery.eq("district", districtFilter);
+          else if (scope === "district" && districtFilter) {
+            casesQuery = casesQuery.eq("district", districtFilter);
+          }
         }
 
         const { data: cases } = await casesQuery;
@@ -331,8 +338,7 @@ export function dashboardRouter() {
               (a.escalation_risk_7d ?? a.current_score)
           );
 
-        const scopedCaseIds =
-          req.user!.role === "official" ? caseIds : await accessibleCaseIds(req.user!.role, req.user!.id);
+        const scopedCaseIds = await accessibleCaseIds(req.user!.role, req.user!.id);
 
         const [slaBreachRows, engagement, goneQuiet, allAnomalies] = await Promise.all([
           fetchSlaBreaches(scopedCaseIds),
@@ -345,7 +351,10 @@ export function dashboardRouter() {
         // narrowed to the districts this caller actually holds cases in.
         const visibleDistricts = new Set((cases ?? []).map((c) => c.district));
         const district_anomalies =
-          req.user!.role === "admin" && scope === "national"
+          (req.user!.role === "admin" || req.user!.role === "official") &&
+          scope === "national" &&
+          !stateFilter &&
+          !districtFilter
             ? allAnomalies
             : allAnomalies.filter((a) => visibleDistricts.has(a.district));
 
@@ -356,6 +365,8 @@ export function dashboardRouter() {
           cases_by_stage,
           cases_by_district: [...districtMap.entries()].map(([district, v]) => ({
             district,
+            state:
+              (cases ?? []).find((c) => c.district === district)?.state ?? null,
             ...v,
           })),
           cases_by_state: [...stateMap.entries()].map(([state, v]) => ({ state, ...v })),
@@ -367,6 +378,7 @@ export function dashboardRouter() {
           open_alerts: openAlerts ?? 0,
           high_risk_cases: highRiskCases,
           scope,
+          filters: { state: stateFilter ?? null, district: districtFilter ?? null },
           sla_breaches: slaBreachRows.length,
           engagement_rate: engagement.rate,
           engagement_basis: {
@@ -388,7 +400,7 @@ export function dashboardRouter() {
   router.get(
     "/priority-queue",
     requireAuth,
-    requireRole("counsellor", "admin", "official"),
+    requireRole("counsellor", "admin"),
     async (req, res, next) => {
       try {
         let query = supabaseAdmin.from("cases").select(`
@@ -400,8 +412,6 @@ export function dashboardRouter() {
 
         if (req.user!.role === "counsellor") {
           query = query.eq("assigned_counsellor_id", req.user!.id);
-        } else if (req.user!.role === "official") {
-          query = query.eq("assigned_official_id", req.user!.id);
         }
 
         const { data: cases, error } = await query;
@@ -495,7 +505,7 @@ export function dashboardRouter() {
   router.get(
     "/sla-breaches",
     requireAuth,
-    requireRole("counsellor", "official", "admin"),
+    requireRole("counsellor", "admin", "official"),
     async (req, res, next) => {
       try {
         const caseIds = await accessibleCaseIds(req.user!.role, req.user!.id);
@@ -535,7 +545,7 @@ export function dashboardRouter() {
   router.get(
     "/stage-funnel",
     requireAuth,
-    requireRole("counsellor", "official", "admin"),
+    requireRole("counsellor", "admin", "official"),
     async (req, res, next) => {
       try {
         const scopedIds = await accessibleCaseIds(req.user!.role, req.user!.id);
@@ -585,6 +595,39 @@ export function dashboardRouter() {
         });
 
         res.json({ funnel, order: STAGE_ORDER });
+      } catch (err) {
+        next(err);
+      }
+    }
+  );
+
+  /** Distinct states / districts for filter UIs. */
+  router.get(
+    "/geo-filters",
+    requireAuth,
+    requireRole("admin", "official", "counsellor"),
+    async (req, res, next) => {
+      try {
+        let query = supabaseAdmin.from("cases").select("district, state");
+        if (req.user!.role === "counsellor") {
+          query = query.eq("assigned_counsellor_id", req.user!.id);
+        }
+        const { data } = await query;
+        const states = new Set<string>();
+        const districtsByState = new Map<string, Set<string>>();
+        for (const row of data ?? []) {
+          if (!row.state || !row.district) continue;
+          states.add(row.state);
+          const set = districtsByState.get(row.state) ?? new Set();
+          set.add(row.district);
+          districtsByState.set(row.state, set);
+        }
+        res.json({
+          states: [...states].sort(),
+          districts_by_state: Object.fromEntries(
+            [...districtsByState.entries()].map(([st, ds]) => [st, [...ds].sort()])
+          ),
+        });
       } catch (err) {
         next(err);
       }
