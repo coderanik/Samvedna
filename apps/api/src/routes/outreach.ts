@@ -22,7 +22,7 @@ export function outreachRouter(io?: SocketServer) {
   router.get(
     "/gone-quiet",
     requireAuth,
-    requireRole("counsellor", "official", "admin"),
+    requireRole("counsellor", "admin"),
     async (req, res, next) => {
       try {
         const ids = await accessibleCaseIds(req.user!.role, req.user!.id);
@@ -36,7 +36,7 @@ export function outreachRouter(io?: SocketServer) {
   router.get(
     "/due",
     requireAuth,
-    requireRole("counsellor", "official", "admin"),
+    requireRole("counsellor", "admin"),
     async (req, res, next) => {
       try {
         const ids = await accessibleCaseIds(req.user!.role, req.user!.id);
@@ -123,7 +123,7 @@ export function outreachRouter(io?: SocketServer) {
   router.post(
     "/schedule",
     requireAuth,
-    requireRole("counsellor", "official", "admin"),
+    requireRole("counsellor", "admin"),
     auditMiddleware("outreach_scheduled", "outreach_schedule"),
     async (req, res, next) => {
       try {
