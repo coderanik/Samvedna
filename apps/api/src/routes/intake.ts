@@ -37,10 +37,9 @@ export function intakeRouter(io: SocketServer) {
       .enum(["nhaa_14566", "portal", "helpline", "sms", "ivrs"])
       .default("nhaa_14566"),
     assign_counsellor_id: z.string().uuid().optional(),
-    assign_official_id: z.string().uuid().optional(),
   });
 
-  router.post("/nhaa", requireAuth, requireRole("admin", "official"), async (req, res, next) => {
+  router.post("/nhaa", requireAuth, requireRole("admin"), async (req, res, next) => {
     try {
       const body = schema.parse(req.body);
       const caseNumber = `NHAA-${body.complaint_id}`.slice(0, 40);
@@ -95,7 +94,7 @@ export function intakeRouter(io: SocketServer) {
             district: body.district,
             state: body.state,
             assigned_counsellor_id: body.assign_counsellor_id ?? null,
-            assigned_official_id: body.assign_official_id ?? null,
+            assigned_official_id: null,
           })
           .select()
           .single();
