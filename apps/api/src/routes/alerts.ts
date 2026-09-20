@@ -26,13 +26,8 @@ export function alertsRouter(io?: SocketServer) {
         return res.json([]);
       } else if (user.role === "counsellor") {
         query = query.eq("assigned_to", user.id);
-      } else if (user.role === "official") {
-        const { data: officialCases } = await supabaseAdmin
-          .from("cases")
-          .select("id")
-          .eq("assigned_official_id", user.id);
-        const caseIds = (officialCases ?? []).map((c) => c.id);
-        query = query.in("case_id", caseIds.length ? caseIds : ["00000000-0000-0000-0000-000000000000"]);
+      } else if (user.role !== "admin") {
+        return res.json([]);
       }
 
       const { data, error } = await query;
