@@ -46,11 +46,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { href: "/counselor/cases", label: "Cases", icon: LayoutDashboard },
     { href: "/counselor/calls", label: "Calls", icon: Phone },
   ],
-  official: [
-    { href: "/admin#overview", label: "Overview", icon: Shield, group: "Operations" },
-    { href: "/admin#cases", label: "Cases", icon: FolderOpen, group: "Operations" },
-    { href: "/admin#alerts", label: "Alerts", icon: AlertTriangle, group: "Operations" },
-  ],
+  official: [],
   admin: [
     { href: "/admin#overview", label: "Overview", icon: Shield, group: "Admin" },
     { href: "/admin#victims", label: "Victims", icon: Users, group: "Directory" },
@@ -128,9 +124,8 @@ export function AppShell({
   }, [pathname]);
 
   const links = NAV[role] ?? NAV.victim;
-  const useSidebar = role === "admin" || role === "counsellor" || role === "official";
-  const showAlertToasts =
-    (role === "admin" || role === "official") && Boolean(userId);
+  const useSidebar = role === "admin" || role === "counsellor";
+  const showAlertToasts = role === "admin" && Boolean(userId);
 
   async function logout() {
     const supabase = createClient();
@@ -138,90 +133,124 @@ export function AppShell({
     window.location.href = "/login";
   }
 
+  // Victim shell — top bar (logo + sign out) + left sidebar for page nav
   if (!useSidebar) {
-    // Victim (and similar) shell — top bar + bottom tabs on mobile
     return (
-      <div className="min-h-screen bg-background pb-20 md:pb-0">
-        <header className="sticky top-0 z-50 border-b bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3 sm:px-4">
-            <Link
-              href={links[0]?.href ?? "/"}
-              className="group flex min-w-0 items-center gap-2 font-semibold text-primary sm:gap-2.5"
-            >
-              <SamvednaMark size={26} className="shrink-0 transition-transform group-hover:scale-105" />
-              <span className="font-display text-base font-semibold tracking-tight text-foreground sm:text-lg">
-                Samvedna
-              </span>
-            </Link>
-
-            {/* Desktop / tablet horizontal nav */}
-            <nav className="hidden items-center gap-0.5 md:flex">
-              {links.map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className={cn(
-                    "rounded-md px-2.5 py-1.5 text-sm transition-colors lg:px-3",
-                    isActive(pathname, hash, l.href)
-                      ? "bg-primary/10 font-medium text-primary"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {l.label}
-                </Link>
-              ))}
-            </nav>
-
-            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-              {userName && (
-                <span className="hidden max-w-[140px] truncate text-sm text-muted-foreground lg:inline">
-                  {userName}
-                </span>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={logout}
-                aria-label="Sign out"
-                className="h-9 w-9 p-0 sm:h-9 sm:w-auto sm:px-3"
+      <div className="flex min-h-screen flex-col bg-[var(--sanctuary-canvas,#fdfbf7)]">
+        <header className="sticky top-0 z-50 border-b border-[var(--sanctuary-sand,#e8dcc8)] bg-[var(--sanctuary-canvas,#fdfbf7)]/90 backdrop-blur supports-[backdrop-filter]:bg-[var(--sanctuary-canvas,#fdfbf7)]/80">
+          <div className="flex h-14 items-center justify-between gap-3 px-3 sm:px-5">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--sanctuary-sand,#e8dcc8)] text-[var(--sanctuary-ink-2,#5a6b69)] transition hover:border-[var(--sanctuary-teal,#0f6f65)]/40 hover:bg-[var(--sanctuary-teal,#0f6f65)]/5 hover:text-[var(--sanctuary-teal,#0f6f65)] lg:hidden"
+                onClick={() => setMobileOpen(true)}
+                aria-label="Open menu"
               >
-                <LogOut className="h-4 w-4" />
-                <span className="ml-1.5 hidden sm:inline">Sign out</span>
-              </Button>
+                <Menu className="h-4 w-4" />
+              </button>
+              <Link
+                href={links[0]?.href ?? "/victim/dashboard"}
+                className="group flex items-center gap-2.5 no-underline"
+              >
+                <SamvednaMark
+                  size={28}
+                  className="shrink-0 transition-transform duration-300 group-hover:scale-105"
+                />
+                <span className="font-display text-lg font-semibold tracking-tight text-[var(--sanctuary-ink,#14211f)]">
+                  Samvedna
+                </span>
+              </Link>
             </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={logout}
+              aria-label="Sign out"
+              className="h-9 gap-1.5 rounded-full px-3 text-[var(--sanctuary-ink-2,#5a6b69)] transition hover:bg-[var(--sanctuary-teal,#0f6f65)]/10 hover:text-[var(--sanctuary-teal,#0f6f65)]"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sign out</span>
+            </Button>
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl px-3 py-4 sm:px-4 sm:py-6 md:px-6">
-          {children}
-        </main>
+        <div className="relative flex min-h-0 flex-1">
+          {mobileOpen && (
+            <button
+              type="button"
+              aria-label="Close menu"
+              className="fixed inset-0 z-40 bg-[var(--sanctuary-ink,#14211f)]/25 backdrop-blur-[2px] lg:hidden"
+              onClick={() => setMobileOpen(false)}
+            />
+          )}
 
-        {/* Mobile bottom tab bar */}
-        <nav
-          className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
-          aria-label="Primary"
-        >
-          <ul className="mx-auto grid max-w-lg grid-cols-5">
-            {links.map((l) => {
-              const Icon = l.icon;
-              const active = isActive(pathname, hash, l.href);
-              return (
-                <li key={l.href}>
+          <aside
+            className={cn(
+              "fixed inset-y-0 left-0 z-50 flex w-[240px] flex-col border-r border-[var(--sanctuary-sand,#e8dcc8)] bg-[var(--sanctuary-canvas,#fdfbf7)] pt-14 shadow-sm transition-transform duration-300 ease-out lg:static lg:z-0 lg:translate-x-0 lg:pt-0 lg:shadow-none",
+              mobileOpen ? "translate-x-0" : "-translate-x-full"
+            )}
+          >
+            <div className="flex items-center justify-between border-b border-[var(--sanctuary-sand,#e8dcc8)] px-4 py-3 lg:hidden">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--sanctuary-ink-3,#93a19f)]">
+                Navigate
+              </p>
+              <button
+                type="button"
+                className="rounded-md p-1.5 text-[var(--sanctuary-ink-2,#5a6b69)] transition hover:bg-[var(--sanctuary-sand,#e8dcc8)]/50 hover:text-[var(--sanctuary-ink,#14211f)]"
+                onClick={() => setMobileOpen(false)}
+                aria-label="Close menu"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Primary">
+              {links.map((l) => {
+                const Icon = l.icon;
+                const active = isActive(pathname, hash, l.href);
+                return (
                   <Link
+                    key={l.href}
                     href={l.href}
+                    onClick={() => setMobileOpen(false)}
                     className={cn(
-                      "flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] font-medium transition-colors",
-                      active ? "text-primary" : "text-muted-foreground"
+                      "group relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 text-sm no-underline transition-all duration-200",
+                      active
+                        ? "bg-[var(--sanctuary-teal,#0f6f65)]/10 font-medium text-[var(--sanctuary-teal,#0f6f65)] shadow-[inset_3px_0_0_0_var(--sanctuary-teal,#0f6f65)]"
+                        : "text-[var(--sanctuary-ink-2,#5a6b69)] hover:translate-x-0.5 hover:bg-[var(--sanctuary-sand,#e8dcc8)]/45 hover:text-[var(--sanctuary-ink,#14211f)]"
                     )}
                   >
-                    <Icon className={cn("h-5 w-5", active && "stroke-[2.25px]")} />
-                    <span className="truncate">{l.label === "Exercises" ? "Plans" : l.label}</span>
+                    <span
+                      className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-200",
+                        active
+                          ? "bg-[var(--sanctuary-teal,#0f6f65)]/15 text-[var(--sanctuary-teal,#0f6f65)]"
+                          : "bg-[var(--sanctuary-sand,#e8dcc8)]/40 text-[var(--sanctuary-ink-3,#93a19f)] group-hover:bg-[var(--sanctuary-teal,#0f6f65)]/10 group-hover:text-[var(--sanctuary-teal,#0f6f65)]"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="truncate">{l.label}</span>
                   </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
+                );
+              })}
+            </nav>
+
+            {userName && (
+              <div className="border-t border-[var(--sanctuary-sand,#e8dcc8)] px-4 py-3">
+                <p className="truncate text-sm font-medium text-[var(--sanctuary-ink,#14211f)]">
+                  {userName}
+                </p>
+                <p className="mt-0.5 text-[11px] text-[var(--sanctuary-ink-3,#93a19f)]">Your space</p>
+              </div>
+            )}
+          </aside>
+
+          <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+            {children}
+          </main>
+        </div>
       </div>
     );
   }
