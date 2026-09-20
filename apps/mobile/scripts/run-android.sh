@@ -1,10 +1,20 @@
 #!/usr/bin/env bash
 # Start Android Studio emulator (if needed) then open Expo on it.
+# Usage:
+#   ./scripts/run-android.sh              # Expo Go / default
+#   ./scripts/run-android.sh --dev-client # Development build (required for Android push)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck disable=SC1091
 source "$ROOT/scripts/android-env.sh"
+
+DEV_CLIENT=0
+for arg in "$@"; do
+  case "$arg" in
+    --dev-client|-d) DEV_CLIENT=1 ;;
+  esac
+done
 
 if [ ! -x "$ANDROID_HOME/platform-tools/adb" ]; then
   echo "Android SDK not found at $ANDROID_HOME"
@@ -61,5 +71,20 @@ adb reverse tcp:4000 tcp:4000 || true
 adb reverse tcp:8001 tcp:8001 || true
 
 cd "$ROOT"
+
+if [ "$DEV_CLIENT" -eq 1 ]; then
+  # Prefer launching the installed development build (org.samvedna.victim)
+  if ! adb shell pm list packages 2>/dev/null | grep -q 'org.samvedna.victim'; then
+    echo "No Samvedna development build installed on this device/emulator."
+    echo "Build one first:"
+    echo "  pnpm android:build          # local Gradle (Android Studio)"
+    echo "  pnpm eas:build:android      # EAS cloud APK"
+    echo ""
+    echo "Falling back to Metro with --dev-client (open the installed app manually)."
+  fi
+  echo "Launching Metro for development client…"
+  exec npx expo start --dev-client --android --clear
+fi
+
 echo "Launching Expo (SDK 57) on Android…"
 exec npx expo start --android --clear
