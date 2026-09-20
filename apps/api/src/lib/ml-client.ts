@@ -226,7 +226,7 @@ export interface ForecastPayload {
   scores: Array<{ score: number; created_at: string }>;
   horizon_days?: number;
   features?: {
-    engagement_drop?: boolean;
+    engagement_drop?: boolean | number;
     vocal_stress_index?: number;
     [key: string]: unknown;
   };
@@ -237,6 +237,7 @@ export interface ForecastResult {
   ci_lower: number;
   ci_upper: number;
   crisis_probability: number;
+  risk_7d?: number;
   method: string;
   trajectory: Array<{
     day: number;
@@ -247,6 +248,13 @@ export interface ForecastResult {
   backtest_mae: number | null;
   model_version: string;
   disclaimer: string;
+  escalation_model?: {
+    escalation_probability: number;
+    risk_7d: number;
+    method: string;
+    honesty_note: string;
+    sklearn?: boolean;
+  };
 }
 
 /**
