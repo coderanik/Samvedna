@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
-import { homeForRole, resolveUserRole } from "@/lib/auth";
+import { homeForRole, isDeprecatedRole, resolveUserRole } from "@/lib/auth";
 import { LandingNarrative } from "@/components/landing-narrative";
 
 export default async function HomePage() {
@@ -15,7 +15,11 @@ export default async function HomePage() {
       .select("role")
       .eq("id", user.id)
       .single();
-    redirect(homeForRole(resolveUserRole(user, profile)));
+    const role = resolveUserRole(user, profile);
+    // Official portal removed — do not redirect (avoids / ↔ / loops); middleware clears session.
+    if (!isDeprecatedRole(role)) {
+      redirect(homeForRole(role));
+    }
   }
 
   return <LandingNarrative />;
