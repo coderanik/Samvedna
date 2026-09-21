@@ -35,6 +35,7 @@ export default function SignupPage() {
           full_name: form.full_name,
           role: form.role,
           preferred_language: form.preferred_language,
+          onboarding_required: form.role === "victim",
         },
       },
     });
@@ -45,7 +46,16 @@ export default function SignupPage() {
       return;
     }
 
-    router.push("/login?registered=1");
+    // Prefer immediate session (email confirm off) → onboarding; else login
+    const supabaseCheck = createClient();
+    const {
+      data: { session },
+    } = await supabaseCheck.auth.getSession();
+    if (session) {
+      router.push("/victim/onboarding");
+    } else {
+      router.push("/login?registered=1");
+    }
   }
 
   return (
@@ -78,7 +88,6 @@ export default function SignupPage() {
               >
                 <option value="victim">Victim</option>
                 <option value="counsellor">Counsellor</option>
-                <option value="official">Official</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
