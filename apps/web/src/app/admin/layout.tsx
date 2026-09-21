@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { homeForRole, resolveUserRole } from "@/lib/auth";
 
-/** Combined control plane for system admins and district officials. */
+/** System admin control plane. */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const {
@@ -18,7 +18,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .single();
 
   const role = resolveUserRole(user, profile);
-  if (role !== "admin" && role !== "official") {
+  if (role !== "admin") {
     redirect(homeForRole(role));
   }
 
