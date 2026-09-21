@@ -36,7 +36,6 @@ npx expo start --android --clear
 
 If you see a red Metro error, press **`r`** in the Expo terminal (or shake device → Reload) after Metro finishes starting.
 
-
 ### Device networking
 
 | Device | API URL |
@@ -45,13 +44,90 @@ If you see a red Metro error, press **`r`** in the Expo terminal (or shake devic
 | Android emulator | `http://10.0.2.2:4000` (auto-rewritten from localhost) |
 | Physical phone | `http://YOUR_LAN_IP:4000` in `EXPO_PUBLIC_API_URL` |
 
+## Development build (required for Android push)
+
+Expo Go **cannot** receive Android remote push on SDK 53+. Use a development build instead.
+
+### 1. One-time EAS setup
+
+```bash
+cd apps/mobile
+npx eas-cli login          # Expo account
+npx eas-cli init           # links project → writes extra.eas.projectId into app.json
+```
+
+### 2. Firebase / FCM (Android push credentials)
+
+1. Create a Firebase project → add Android app with package `org.samvedna.victim`.
+2. Download `google-services.json` into `apps/mobile/` (gitignored).
+3. In `app.json` under `expo.android`, add:
+
+```json
+"googleServicesFile": "./google-services.json"
+```
+
+4. Upload the FCM V1 service-account JSON to EAS:
+
+```bash
+npx eas-cli credentials -p android
+# → production / development → Google Service Account → upload key
+```
+
+Docs: [FCM credentials](https://docs.expo.dev/push-notifications/fcm-credentials/).
+
+### 3. Build & install
+
+**Option A — local (fastest if Android Studio is already set up):**
+
+```bash
+cd apps/mobile
+pnpm android:build
+# first run generates android/ and installs org.samvedna.victim on the emulator/device
+```
+
+**Option B — EAS cloud APK:**
+
+```bash
+cd apps/mobile
+pnpm eas:build:android
+# download/install the APK when the build finishes (or use Expo Orbit)
+```
+
+Use `pnpm eas:build:android:device` for a physical-device APK profile.
+
+### 4. Run Metro against the installed build
+
+```bash
+# from repo root
+pnpm dev:mobile:android:dev
+
+# or from apps/mobile
+pnpm android:dev
+```
+
+Open the **Samvedna** app on the emulator (not Expo Go). After login you should see a push token register (no Expo Go skip message).
+
+Test a notification: [Expo push tool](https://expo.dev/notifications) with the Expo push token from logs / DB.
 ## Screens
 
-- Login / Signup  
-- Home · Check-in · Call hub · History  
-- Metal AI call · Video call · Helplines  
+- Login / Signup / **Onboard deep link** (`samvedna://onboard/[token]`)
+- Home · Check-in · Call hub · History
+- Home shows **next counselling session** + Join when in window
+- Push: care notices (high/critical) + session reminders (Expo Push). Android remote push needs a **development build** (see above) — not Expo Go.
+- Metal AI call · Video call · Helplines
 
-Staff roles are redirected to a notice — use the **web app** for counsellor / official / admin.
+Staff roles are redirected to a notice — use the **web app** for counsellor / admin.
+
+## Deep links
+
+Scheme: `samvedna` (see `app.json`).
+
+| Link | Opens |
+|------|--------|
+| `samvedna://onboard/<token>` | In-app invite claim |
+| `samvedna://auth/callback` | OAuth return |
+
+Invite emails include both the web URL and the app deep link.
 
 ## Google sign-in
 
