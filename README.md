@@ -82,15 +82,18 @@ SAMVEDNA/
 ├── packages/shared-types/ ← Shared TypeScript types
 ├── supabase/migrations/   ← SQL files to create database tables
 ├── scripts/seed.ts        ← Creates demo users and sample data
+├── architecture.md        ← Detailed system architecture
 ├── .env.example           ← Template for secret keys (copy to .env)
 └── package.json           ← Root commands like pnpm dev
 ```
 
 When you run `pnpm dev`, **three programs start at once** — the website, the API, and the AI service. All three must be running for chat and scoring to work.
 
-### Presentation / NHAA alignment
+### Architecture & presentation
 
-See [`docs/PRESENTATION.md`](docs/PRESENTATION.md) for the audit summary, LIVE vs ARCHITECTED honesty labels, and a 4-minute demo script.
+- **[`architecture.md`](architecture.md)** — implemented system architecture (API, ML, data model, flows)
+- [`docs/PRESENTATION.md`](docs/PRESENTATION.md) — audit summary, LIVE / ARCHITECTED / ROADMAP labels, demo script
+- [`docs/01-architecture.md`](docs/01-architecture.md) — aspirational target-state diagrams
 
 **Apply DB upgrades** (Supabase → SQL Editor, in order):
 
@@ -579,6 +582,8 @@ On Windows, use `.venv\Scripts\pip` and `.venv\Scripts\uvicorn` instead.
 | `services/ml-service` | Python FastAPI, Gemini (`/score`, `/chat`, `/explain`) |
 | `packages/shared-types` | Shared TypeScript types |
 | `supabase/migrations` | PostgreSQL schema + Row Level Security |
+
+Full detail: **[`architecture.md`](architecture.md)**.
 
 ---
 
