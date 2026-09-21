@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { homeForRole, resolveUserRole } from "@/lib/auth";
+import { homeForRole, isDeprecatedRole, resolveUserRole } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SamvednaMark } from "@/components/samvedna-logo";
+import { Home } from "lucide-react";
 
 const PORTAL = process.env.NEXT_PUBLIC_PORTAL ?? "";
 const IS_ADMIN_PORTAL = PORTAL === "admin";
@@ -20,16 +21,6 @@ const ADMIN_PASSWORD_HINT =
   process.env.NODE_ENV === "development" && SHOW_ADMIN_HINT
     ? process.env.NEXT_PUBLIC_ADMIN_PASSWORD_HINT ?? ""
     : "";
-
-const DEMO_ACCOUNTS =
-  process.env.NODE_ENV === "development"
-    ? ([
-        { label: "Victim", email: "victim1@samvedna.demo", password: "Samvedna@2024" },
-        { label: "Counsellor", email: "counsellor1@samvedna.demo", password: "Samvedna@2024" },
-        { label: "Official", email: "official@samvedna.demo", password: "Samvedna@2024" },
-        { label: "Admin", email: "admin@samvedna.demo", password: "SamvednaAdmin@2024" },
-      ] as const)
-    : [];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -42,6 +33,11 @@ export default function LoginPage() {
   useEffect(() => {
     if (IS_ADMIN_PORTAL) {
       setEmail(ADMIN_EMAIL_HINT);
+    }
+    if (typeof window === "undefined") return;
+    const reason = new URLSearchParams(window.location.search).get("reason");
+    if (reason === "official-retired") {
+      setError("Official sessions were reset. Sign in again as official, counsellor, or admin.");
     }
   }, []);
 
@@ -65,11 +61,18 @@ export default function LoginPage() {
     const user = authData.user;
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, onboarding_completed_at")
       .eq("id", user.id)
       .single();
 
     const role = resolveUserRole(user, profile);
+
+    if (isDeprecatedRole(role)) {
+      await supabase.auth.signOut();
+      setError("This account role is not active. Use victim, counsellor, official, or admin.");
+      setLoading(false);
+      return;
+    }
 
     if (IS_ADMIN_PORTAL && role !== "admin") {
       await supabase.auth.signOut();
@@ -79,7 +82,22 @@ export default function LoginPage() {
     }
 
     router.refresh();
-    router.push(homeForRole(role));
+    const onboarded =
+      Boolean(profile?.onboarding_completed_at) ||
+      user.user_metadata?.onboarding_completed === true;
+    const needsOnboarding =
+      role === "victim" &&
+      !onboarded &&
+      (user.user_metadata?.onboarding_required === true ||
+        (profile != null &&
+          Object.prototype.hasOwnProperty.call(profile, "onboarding_completed_at") &&
+          !profile.onboarding_completed_at));
+
+    if (needsOnboarding) {
+      router.push("/victim/onboarding");
+    } else {
+      router.push(homeForRole(role));
+    }
   }
 
   async function handleGoogle() {
@@ -115,7 +133,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
+      <Link
+        href="/"
+        aria-label="Home"
+        className="absolute left-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--sanctuary-sand)] bg-white/80 text-[var(--sanctuary-ink)] no-underline backdrop-blur transition hover:border-[var(--sanctuary-teal)]/40 sm:left-6 sm:top-6"
+      >
+        <Home className="h-4 w-4" strokeWidth={2} />
+      </Link>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-3 flex items-center justify-center">
@@ -178,34 +203,6 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
-
-          {!IS_ADMIN_PORTAL && DEMO_ACCOUNTS.length > 0 && (
-            <div className="mt-4 rounded-md border border-dashed border-border bg-muted/40 px-3 py-3">
-              <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Demo accounts
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {DEMO_ACCOUNTS.map((account) => (
-                  <button
-                    key={account.email}
-                    type="button"
-                    className="rounded-md border border-border bg-background px-2.5 py-1 text-xs text-foreground transition hover:border-primary/40 hover:bg-primary/5"
-                    onClick={() => {
-                      setEmail(account.email);
-                      setPassword(account.password);
-                      setError("");
-                    }}
-                  >
-                    {account.label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-2 text-[11px] text-muted-foreground">
-                Fills the form — then click Sign in. Password for most roles:{" "}
-                <span className="font-mono">Samvedna@2024</span>
-              </p>
-            </div>
-          )}
 
           {!IS_ADMIN_PORTAL && (
             <>
