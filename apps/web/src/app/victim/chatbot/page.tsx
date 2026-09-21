@@ -1,20 +1,36 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/utils/supabase/client";
 import { apiFetch } from "@/lib/utils";
 import { CrisisSheet } from "@/components/crisis-sheet";
+import {
+  connectSocket,
+  joinHandoffRoom,
+  onChatHandoffMessage,
+  onCounsellorJoinedChat,
+} from "@/lib/socket";
+import { Video, UserRound } from "lucide-react";
 
 interface ChatMessage {
   id?: string;
-  role: "assistant" | "user";
+  role: "assistant" | "user" | "system" | "counsellor";
   content: string;
 }
 
+type Handoff = {
+  id: string;
+  status: "requested" | "joined" | "ended";
+  videoRoomUrl?: string;
+  video_room_url?: string;
+  counsellorId?: string | null;
+};
+
 export default function VictimChatbotPage() {
   const [token, setToken] = useState("");
+  const [userId, setUserId] = useState("");
   const [name, setName] = useState("");
   const [locale, setLocale] = useState("en");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -22,8 +38,29 @@ export default function VictimChatbotPage() {
   const [loading, setLoading] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [showHandoffOffer, setShowHandoffOffer] = useState(false);
+  const [handoff, setHandoff] = useState<Handoff | null>(null);
+  const [handoffBusy, setHandoffBusy] = useState(false);
   const turnCount = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const offeredRef = useRef(false);
+
+  const liveMode = handoff?.status === "joined" || handoff?.status === "requested";
+  const videoUrl = handoff?.videoRoomUrl ?? handoff?.video_room_url ?? null;
+
+  const refreshHandoff = useCallback(async (accessToken: string) => {
+    try {
+      const data = await apiFetch<{ handoff: Handoff | null }>("/chat/handoff/active", {
+        token: accessToken,
+      });
+      if (data.handoff) {
+        setHandoff(data.handoff);
+        joinHandoffRoom(data.handoff.id);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     async function init() {
@@ -33,6 +70,8 @@ export default function VictimChatbotPage() {
       } = await supabase.auth.getSession();
       if (!session) return;
       setToken(session.access_token);
+      setUserId(session.user.id);
+      connectSocket(session.user.id);
 
       const { data: prof } = await supabase
         .from("profiles")
@@ -50,10 +89,11 @@ export default function VictimChatbotPage() {
           setMessages(
             history.map((m) => ({
               id: m.id,
-              role: m.role === "assistant" ? "assistant" : "user",
+              role: (m.role as ChatMessage["role"]) || "assistant",
               content: m.content,
             }))
           );
+          turnCount.current = history.filter((m) => m.role === "user").length;
         } else {
           setMessages([
             {
@@ -67,6 +107,7 @@ export default function VictimChatbotPage() {
           token: session.access_token,
         });
         setTags(tagRows.map((t) => t.tag));
+        await refreshHandoff(session.access_token);
       } catch {
         setMessages([
           {
@@ -78,11 +119,77 @@ export default function VictimChatbotPage() {
       }
     }
     init();
-  }, []);
+  }, [refreshHandoff]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const offJoin = onCounsellorJoinedChat((event) => {
+      setHandoff((h) =>
+        h && h.id === event.handoff_id
+          ? {
+              ...h,
+              status: "joined",
+              videoRoomUrl: event.video_room_url ?? h.videoRoomUrl,
+            }
+          : h
+      );
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "system",
+          content: "Your counsellor has joined this conversation.",
+        },
+      ]);
+    });
+    const offMsg = onChatHandoffMessage((event) => {
+      if (handoff && event.handoff_id !== handoff.id) return;
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === event.message.id)) return prev;
+        return [
+          ...prev,
+          {
+            id: event.message.id,
+            role: event.message.role as ChatMessage["role"],
+            content: event.message.content,
+          },
+        ];
+      });
+    });
+    return () => {
+      offJoin();
+      offMsg();
+    };
+  }, [userId, handoff]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  async function requestHandoff() {
+    if (!token || handoffBusy) return;
+    setHandoffBusy(true);
+    setError("");
+    try {
+      const data = await apiFetch<{
+        handoff: Handoff & { videoRoomUrl: string };
+      }>("/chat/handoff", { method: "POST", token, body: "{}" });
+      setHandoff(data.handoff);
+      setShowHandoffOffer(false);
+      joinHandoffRoom(data.handoff.id);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "system",
+          content:
+            "Connecting you with your counsellor. They'll get a notification and can join this chat. You can also start a video call when you're ready.",
+        },
+      ]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not request counsellor");
+    } finally {
+      setHandoffBusy(false);
+    }
+  }
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
@@ -94,23 +201,48 @@ export default function VictimChatbotPage() {
     setLoading(true);
     setError("");
     turnCount.current += 1;
-    // Score every 3rd user turn to avoid flooding the pipeline
+
+    // Live counsellor mode — skip AI
+    if (liveMode && handoff?.id) {
+      try {
+        const saved = await apiFetch<ChatMessage>(`/chat/handoff/${handoff.id}/message`, {
+          method: "POST",
+          token,
+          body: JSON.stringify({ content: userMsg }),
+        });
+        setMessages((prev) => {
+          const withoutOptimisticDup = prev.slice(0, -1);
+          return [...withoutOptimisticDup, { ...saved, role: "user" }];
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Message failed");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     const shouldScore = turnCount.current % 3 === 0;
 
     try {
       const data = await apiFetch<{
         response: string;
         tags?: string[];
+        suggest_handoff?: boolean;
+        wants_human?: boolean;
       }>("/chat", {
         method: "POST",
         token,
         body: JSON.stringify({
           message: userMsg,
           preferred_language: locale,
-          conversation_history: history.slice(0, -1).map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          conversation_history: history
+            .filter((m) => m.role === "user" || m.role === "assistant")
+            .slice(0, -1)
+            .map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
           persist: true,
           score: shouldScore,
         }),
@@ -119,11 +251,32 @@ export default function VictimChatbotPage() {
       if (data.tags?.length) {
         setTags((prev) => [...new Set([...prev, ...data.tags!])]);
       }
+      if ((data.suggest_handoff || data.wants_human) && !offeredRef.current && !handoff) {
+        offeredRef.current = true;
+        setShowHandoffOffer(true);
+      }
+      if (data.wants_human && !handoff) {
+        await requestHandoff();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chat unavailable");
     } finally {
       setLoading(false);
     }
+  }
+
+  function bubbleClass(role: ChatMessage["role"]) {
+    if (role === "user") return "ml-auto bg-primary text-primary-foreground";
+    if (role === "counsellor") return "border border-primary/30 bg-primary/10 text-foreground";
+    if (role === "system") return "mx-auto max-w-full bg-transparent text-center text-xs text-muted-foreground";
+    return "bg-muted text-foreground";
+  }
+
+  function label(role: ChatMessage["role"]) {
+    if (role === "counsellor") return "Counsellor";
+    if (role === "system") return null;
+    if (role === "user") return null;
+    return "Mann-Mitra";
   }
 
   return (
@@ -133,13 +286,51 @@ export default function VictimChatbotPage() {
           <div className="min-w-0">
             <h1 className="font-display text-xl font-semibold sm:text-2xl">Chatbot</h1>
             <p className="text-xs text-muted-foreground sm:text-sm">
-              Private to you. Messages stay with your account only.
+              {handoff?.status === "joined"
+                ? "Your counsellor is in this conversation."
+                : handoff?.status === "requested"
+                  ? "Waiting for your counsellor to join…"
+                  : "Private to you. Mann-Mitra listens first — a counsellor can join when you want."}
             </p>
           </div>
-          <div className="shrink-0">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={handoffBusy || handoff?.status === "joined"}
+              onClick={() => void requestHandoff()}
+            >
+              <UserRound className="mr-1.5 h-3.5 w-3.5" />
+              {handoff ? "Requested" : "Connect counsellor"}
+            </Button>
+            {videoUrl && (
+              <Button type="button" size="sm" asChild>
+                <a href={videoUrl} target="_blank" rel="noreferrer">
+                  <Video className="mr-1.5 h-3.5 w-3.5" />
+                  Video call
+                </a>
+              </Button>
+            )}
             <CrisisSheet locale={locale} />
           </div>
         </header>
+
+        {showHandoffOffer && !handoff && (
+          <div className="rounded-lg border border-primary/20 bg-primary/[0.04] px-4 py-3 text-sm">
+            <p className="text-foreground">
+              Would it help to bring your counsellor into this chat?
+            </p>
+            <div className="mt-2 flex gap-2">
+              <Button size="sm" onClick={() => void requestHandoff()} disabled={handoffBusy}>
+                Yes, connect me
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowHandoffOffer(false)}>
+                Not now
+              </Button>
+            </div>
+          </div>
+        )}
 
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -157,19 +348,23 @@ export default function VictimChatbotPage() {
         <div className="flex min-h-[min(60vh,420px)] flex-1 flex-col rounded-xl border bg-card sm:min-h-[420px]">
           <div className="flex-1 space-y-3 overflow-y-auto p-3 sm:p-4">
             {messages.map((m, i) => (
-              <div
-                key={m.id ?? i}
-                className={`max-w-[90%] rounded-2xl px-3 py-2 text-sm leading-relaxed sm:max-w-[85%] sm:px-3.5 ${
-                  m.role === "user"
-                    ? "ml-auto bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground"
-                }`}
-              >
-                {m.content}
+              <div key={m.id ?? i} className={`max-w-[90%] sm:max-w-[85%] ${m.role === "system" ? "mx-auto" : ""}`}>
+                {label(m.role) && (
+                  <p className="mb-0.5 px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {label(m.role)}
+                  </p>
+                )}
+                <div
+                  className={`rounded-2xl px-3 py-2 text-sm leading-relaxed sm:px-3.5 ${bubbleClass(m.role)}`}
+                >
+                  {m.content}
+                </div>
               </div>
             ))}
             {loading && (
-              <p className="text-xs text-muted-foreground">Mann-Mitra is listening…</p>
+              <p className="text-xs text-muted-foreground">
+                {liveMode ? "Sending…" : "Mann-Mitra is listening…"}
+              </p>
             )}
             <div ref={bottomRef} />
           </div>
@@ -177,10 +372,21 @@ export default function VictimChatbotPage() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Type what feels safe…"
+              placeholder={
+                handoff?.status === "joined"
+                  ? "Message your counsellor…"
+                  : "Type what feels safe…"
+              }
               className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2.5 text-sm outline-none ring-ring focus:ring-2"
               disabled={loading}
             />
+            {videoUrl && (
+              <Button type="button" variant="outline" className="shrink-0" asChild>
+                <a href={videoUrl} target="_blank" rel="noreferrer" title="Video call with counsellor">
+                  <Video className="h-4 w-4" />
+                </a>
+              </Button>
+            )}
             <Button type="submit" className="shrink-0" disabled={loading || !input.trim()}>
               Send
             </Button>
