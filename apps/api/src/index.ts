@@ -24,6 +24,10 @@ import { instantCallsRouter } from "./routes/instant-calls";
 import { consultantRouter } from "./routes/consultant";
 import { exercisesRouter } from "./routes/exercises";
 import { victimProfileRouter } from "./routes/victim-profile";
+import { onboardingRouter } from "./routes/onboarding";
+import { judiciaryRouter } from "./routes/judiciary";
+import { intelligenceRouter } from "./routes/intelligence";
+import { victimMobileRouter } from "./routes/victim-mobile";
 import { startCadenceTick } from "./lib/cadence-engine";
 import { supabaseAdmin } from "./lib/supabase";
 
@@ -56,13 +60,17 @@ app.use("/checkins", checkinsRouter(io));
 app.use("/chat", chatRouter(io));
 app.use("/calls", callsRouter(io));
 app.use("/victim/dashboard", victimDashboardRouter());
+app.use("/victim", victimMobileRouter());
 app.use("/victim/instant-calls", instantCallsRouter(io));
 app.use("/victim/consultant", consultantRouter());
 app.use("/victim/exercises", exercisesRouter());
 app.use("/victim/profile", victimProfileRouter());
+app.use("/victim/onboarding", onboardingRouter(io));
+app.use("/judiciary", judiciaryRouter(io));
+app.use("/cases", intelligenceRouter());
 // Mounted ahead of casesRouter so it owns /cases/:caseId/scores/:scoreId/explain.
 app.use("/cases", explainRouter());
-app.use("/cases", casesRouter());
+app.use("/cases", casesRouter(io));
 app.use("/alerts", alertsRouter(io));
 app.use("/dashboard", dashboardRouter());
 app.use("/webhooks", webhooksRouter(io));
@@ -84,6 +92,12 @@ io.on("connection", (socket) => {
   socket.on("join_case_room", (payload: { case_id: string }) => {
     if (payload?.case_id) {
       socket.join(`case:${payload.case_id}`);
+    }
+  });
+
+  socket.on("join_handoff_room", (payload: { handoff_id: string }) => {
+    if (payload?.handoff_id) {
+      socket.join(`handoff:${payload.handoff_id}`);
     }
   });
 
