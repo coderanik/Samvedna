@@ -78,7 +78,7 @@ export default function CallHubScreen() {
                   if (!routing?.counsellor) {
                     Alert.alert(
                       "No counsellor assigned",
-                      "Ask your official to assign a counsellor to your case."
+                      "Ask your counsellor or admin to assign a counsellor to your case."
                     );
                     return;
                   }
