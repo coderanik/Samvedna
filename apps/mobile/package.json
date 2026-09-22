@@ -5,8 +5,13 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "start:dev-client": "expo start --dev-client",
     "android": "bash scripts/run-android.sh",
+    "android:dev": "bash scripts/run-android.sh --dev-client",
+    "android:build": "expo run:android",
     "ios": "expo start --ios",
+    "eas:build:android": "npx eas-cli build --platform android --profile development",
+    "eas:build:android:device": "npx eas-cli build --platform android --profile development-device",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
@@ -20,7 +25,10 @@
     "expo-auth-session": "~57.0.11",
     "expo-camera": "~57.0.4",
     "expo-constants": "~57.0.17",
+    "expo-dev-client": "^57.0.19",
+    "expo-device": "^57.0.2",
     "expo-linking": "~57.0.9",
+    "expo-notifications": "^57.0.20",
     "expo-router": "~57.0.18",
     "expo-secure-store": "~57.0.3",
     "expo-speech": "~57.0.2",
