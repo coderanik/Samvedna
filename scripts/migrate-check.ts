@@ -31,6 +31,7 @@ async function main() {
     { table: "consultants", label: "victim dashboard (consultants)" },
     { table: "exercise_recommendations", label: "victim dashboard (exercises)" },
     { table: "chat_messages", label: "victim dashboard (chat_messages)" },
+    { table: "victim_onboarding_responses", label: "victim onboarding (responses)" },
   ];
 
   let failed = false;
@@ -44,10 +45,26 @@ async function main() {
     console.error(`✗ ${c.table} missing (${c.label}): ${error.message}`);
   }
 
+  {
+    const { error } = await supabase
+      .from("profiles")
+      .select("onboarding_completed_at")
+      .limit(1);
+    if (error) {
+      failed = true;
+      console.error(
+        `✗ profiles.onboarding_completed_at missing — apply supabase/migrations/20260905000006_victim_onboarding.sql`
+      );
+    } else {
+      console.log(`✓ profiles.onboarding_completed_at — victim onboarding gate`);
+    }
+  }
+
   if (failed) {
     console.error(
       "\nApply pending SQL in Supabase → SQL Editor, especially:\n" +
-        "  supabase/migrations/20260905000003_victim_dashboard.sql\n"
+        "  supabase/migrations/20260905000003_victim_dashboard.sql\n" +
+        "  supabase/migrations/20260905000006_victim_onboarding.sql\n"
     );
     process.exit(1);
   }
