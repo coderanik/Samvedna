@@ -209,6 +209,18 @@
   }
 }
 
+@keyframes pulse-ring {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.03);
+  }
+}
+
 .mesh-drift {
   background-image: radial-gradient(ellipse 60% 50% at 20% 30%, rgba(15, 111, 101, 0.07), transparent),
     radial-gradient(ellipse 50% 40% at 80% 20%, rgba(232, 220, 200, 0.35), transparent),
