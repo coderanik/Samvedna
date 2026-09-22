@@ -27,7 +27,6 @@ type AdminStats = {
   total_users: number;
   victims: number;
   counsellors: number;
-  officials: number;
   admins: number;
   cases: number;
   unassigned_cases: number;
@@ -53,7 +52,6 @@ const emptyStats: AdminStats = {
   total_users: 0,
   victims: 0,
   counsellors: 0,
-  officials: 0,
   admins: 0,
   cases: 0,
   unassigned_cases: 0,
@@ -200,17 +198,6 @@ export default function ControlPlanePage() {
         ]);
         setUsers(usersData);
         setStats(statsData);
-      } else {
-        // Officials: derive a light directory from assigned cases when possible
-        setUsers([]);
-        setStats({
-          ...emptyStats,
-          cases: casesData.length,
-          unassigned_cases: casesData.filter((c) => !c.assigned_counsellor_id).length,
-          open_alerts: alertsData.filter(
-            (a) => a.status === "open" || a.status === "acknowledged"
-          ).length,
-        });
       }
     },
     []
@@ -234,7 +221,7 @@ export default function ControlPlanePage() {
       setRole(userRole);
       setName(prof?.full_name ?? "");
 
-      if (userRole !== "admin" && userRole !== "official") {
+      if (userRole !== "admin") {
         router.replace(homeForRole(userRole));
         return;
       }
@@ -371,7 +358,7 @@ export default function ControlPlanePage() {
   const counsellors = users.filter((u) => u.role === "counsellor");
   const victims = users.filter((u) => u.role === "victim");
 
-  if (role !== "admin" && role !== "official") {
+  if (role !== "admin") {
     return null;
   }
 
@@ -381,30 +368,26 @@ export default function ControlPlanePage() {
   > = {
     overview: {
       eyebrow: "Control plane",
-      title: isAdmin ? "Administration & intelligence" : "District intelligence",
-      blurb: isAdmin
-        ? "Provisioning, caseload, and population intelligence in one place."
-        : "District operations overview — alerts, risk, and justice-stage funnel.",
+      title: "Administration & intelligence",
+      blurb: "Provisioning, caseload, and population intelligence in one place.",
     },
     victims: {
       eyebrow: "Directory",
       title: "Victims",
       blurb: "Survivor accounts registered in the system.",
-      addLabel: isAdmin ? "Add victim" : undefined,
+      addLabel: "Add victim",
     },
     counsellors: {
       eyebrow: "Directory",
       title: "Counsellors",
       blurb: "Provision counsellor logins and review the current roster.",
-      addLabel: isAdmin ? "Add counsellor" : undefined,
+      addLabel: "Add counsellor",
     },
     cases: {
       eyebrow: "Caseload",
       title: "Cases",
-      blurb: isAdmin
-        ? "Assign or reassign counsellors to open cases."
-        : "Cases in your district scope.",
-      addLabel: isAdmin ? "Add case" : undefined,
+      blurb: "Assign or reassign counsellors to open cases.",
+      addLabel: "Add case",
     },
     alerts: {
       eyebrow: "Intelligence",
@@ -418,7 +401,6 @@ export default function ControlPlanePage() {
   const adminStatCards = [
     { label: "Victims", value: stats.victims, icon: Users, href: "/admin#victims" },
     { label: "Counsellors", value: stats.counsellors, icon: Briefcase, href: "/admin#counsellors" },
-    { label: "Officials", value: stats.officials, icon: Shield },
     { label: "Cases", value: stats.cases, icon: FolderOpen, href: "/admin#cases" },
     { label: "Unassigned", value: stats.unassigned_cases, icon: UserPlus, href: "/admin#cases" },
     { label: "Open alerts", value: stats.open_alerts, icon: AlertTriangle, href: "/admin#alerts" },
@@ -518,12 +500,6 @@ export default function ControlPlanePage() {
               <UserTable users={victims} empty="No victims yet. Use Add victim." />
             </CardContent>
           </Card>
-        )}
-
-        {(section === "counsellors" || section === "victims") && !isAdmin && (
-          <p className="text-sm text-muted-foreground">
-            Directory provisioning is available to system admins only.
-          </p>
         )}
 
         {section === "cases" && (
@@ -722,8 +698,13 @@ export default function ControlPlanePage() {
           open={overlayOpen}
           onClose={() => setOverlayOpen(false)}
           title="Add case"
-          description="Simulated NHAA / portal intake — creates victim + case through the scoring pipeline."
+          description="Simulated NHAA / portal intake — creates victim + case through the scoring pipeline. Prefer Judiciary desk for invite-first flow."
         >
+          <p className="mb-3 text-xs text-muted-foreground">
+            <a href="/official/intake" className="text-primary underline">
+              Open Judiciary / NHAA desk intake →
+            </a>
+          </p>
           <form onSubmit={createCase} className="space-y-3">
             <Field label="Complaint ID">
               <Input
