@@ -36,7 +36,6 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 
 const DEMO_EMAILS = [
   "admin@samvedna.demo",
-  "official@samvedna.demo",
   "counsellor1@samvedna.demo",
   "counsellor2@samvedna.demo",
   "victim1@samvedna.demo",
