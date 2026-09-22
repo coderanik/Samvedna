@@ -1,6 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { homeForRole, resolveUserRole } from "@/lib/auth";
+import { homeForRole, isDeprecatedRole, resolveUserRole } from "@/lib/auth";
 import type { UserRole } from "@samvedna/shared-types";
 
 const PUBLIC_PATHS = ["/login", "/signup", "/onboard", "/auth", "/brand"];
@@ -44,11 +44,12 @@ export async function updateSession(request: NextRequest) {
   }
 
   let role: UserRole | null = null;
+  let victimNeedsOnboarding = false;
 
   if (user) {
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, onboarding_completed_at")
       .eq("id", user.id)
       .maybeSingle();
     // RLS recursion can 500 on profiles — fall back to JWT metadata so routes still work
@@ -56,17 +57,60 @@ export async function updateSession(request: NextRequest) {
       console.warn("[middleware] profiles select failed:", profileError.message);
     }
     role = resolveUserRole(user, profile);
+
+    const metaDone = user.user_metadata?.onboarding_completed === true;
+    const metaRequired = user.user_metadata?.onboarding_required === true;
+    const columnMissing = Boolean(
+      profileError?.message?.includes("onboarding_completed_at")
+    );
+    if (role === "victim" && !metaDone) {
+      if (columnMissing) {
+        // Migration not applied — only gate users flagged at signup
+        victimNeedsOnboarding = metaRequired;
+      } else if (
+        profile &&
+        Object.prototype.hasOwnProperty.call(profile, "onboarding_completed_at")
+      ) {
+        victimNeedsOnboarding = !profile.onboarding_completed_at;
+      } else if (!profileError && metaRequired) {
+        victimNeedsOnboarding = true;
+      }
+    }
+
+    const onVictimOnboarding = pathname.startsWith("/victim/onboarding");
+    if (victimNeedsOnboarding && pathname.startsWith("/victim") && !onVictimOnboarding) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/victim/onboarding";
+      return NextResponse.redirect(url);
+    }
   }
 
-  if (user && isAuthPage && role) {
+  // Deprecated official sessions used to map home → /login and loop forever.
+  // Clear the session once, then allow /login (or landing) to render.
+  if (user && isDeprecatedRole(role)) {
+    await supabase.auth.signOut();
+    if (isAuthPage || pathname === "/") {
+      return supabaseResponse;
+    }
     const url = request.nextUrl.clone();
-    url.pathname = homeForRole(role);
+    url.pathname = "/login";
+    url.searchParams.set("reason", "official-retired");
+    const redirect = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach((c) => {
+      redirect.cookies.set(c.name, c.value);
+    });
+    return redirect;
+  }
+
+  if (user && isAuthPage && role && !isDeprecatedRole(role)) {
+    const url = request.nextUrl.clone();
+    url.pathname = victimNeedsOnboarding ? "/victim/onboarding" : homeForRole(role);
     return NextResponse.redirect(url);
   }
 
-  if (user && pathname === "/" && role) {
+  if (user && pathname === "/" && role && !isDeprecatedRole(role)) {
     const url = request.nextUrl.clone();
-    url.pathname = homeForRole(role);
+    url.pathname = victimNeedsOnboarding ? "/victim/onboarding" : homeForRole(role);
     return NextResponse.redirect(url);
   }
 
@@ -81,7 +125,12 @@ export async function updateSession(request: NextRequest) {
     ) {
       return NextResponse.redirect(new URL(homeForRole(role), request.url));
     }
-    if (pathname.startsWith("/official") && role !== "official" && role !== "admin") {
+    if (
+      pathname.startsWith("/official") &&
+      role !== "official" &&
+      role !== "admin" &&
+      role !== "counsellor"
+    ) {
       return NextResponse.redirect(new URL(homeForRole(role), request.url));
     }
     if (pathname.startsWith("/admin") && role !== "admin") {
