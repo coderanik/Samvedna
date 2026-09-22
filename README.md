@@ -38,7 +38,6 @@ Think of Samvedna like a **digital check-in buddy** for people going through a c
 |-----|-------------------------|
 | **Victim** | Chats with “Mann-Mitra” (AI) in English, Hindi, or Tamil · can request a voice call |
 | **Counsellor** | Sees assigned cases · gets alerts when distress is high · accepts phone calls |
-| **Official** | Sees district dashboard and open alerts |
 | **Admin** | Manages users and case assignments |
 
 When a victim sends a check-in, the system:
@@ -346,18 +345,11 @@ To **stop** the app: go to the terminal where `pnpm dev` is running and press **
 | **Cases** | List of victims assigned to you · click a case for details |
 | **Calls** | Incoming call requests · Accept · optional **Dial via Exotel** if phone integration is set up |
 
-### Official pages
-
-| Page | What happens |
-|------|----------------|
-| **Dashboard** | District-level stats |
-| **Alerts** | Open high/critical alerts |
-
 ### Admin
 
 | Page | What happens |
 |------|----------------|
-| **Administration** | User list · assign counsellors/officials to cases |
+| **Administration** | User list · assign counsellors to cases |
 
 ### How calls work (without Exotel)
 
@@ -379,7 +371,6 @@ If you configure Exotel (see below), real phone IVRS and SMS check-ins also work
 | Role | Email | Try this |
 |------|-------|----------|
 | Admin | admin@samvedna.demo / **SamvednaAdmin@2024** | `/admin` — fixed credentials · user counts · add counsellors · assign cases |
-| Official | official@samvedna.demo | District dashboard + alerts |
 | Counsellor | counsellor1@samvedna.demo | Cases + Calls for victim1 & victim3 |
 | Counsellor | counsellor2@samvedna.demo | Cases for victim2 & victim4 |
 | Victim (high distress) | victim1@samvedna.demo | **Call** → counsellor routing |
