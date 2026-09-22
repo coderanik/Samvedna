@@ -43,7 +43,7 @@ function toToastEvent(row: AlertApiRow): NewAlertEvent {
 }
 
 function caseHref(role: UserRole | undefined, caseId: string) {
-  if (role === "official" || role === "admin") return "/admin#alerts";
+  if (role === "admin") return "/admin#alerts";
   return `/counselor/cases/${caseId}`;
 }
 
@@ -144,9 +144,7 @@ export function AlertToast({
               href={caseHref(role, a.case_id)}
               className="mt-2 inline-block text-xs font-semibold text-primary underline"
             >
-              {role === "admin" || role === "official"
-                ? "Open alerts →"
-                : "Open case intelligence →"}
+              {role === "admin" ? "Open alerts →" : "Open case intelligence →"}
             </Link>
           </div>
           <button
