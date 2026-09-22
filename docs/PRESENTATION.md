@@ -15,8 +15,8 @@ Show the forecast cone crossing 76 with the honesty line: *trained on synthetic 
 ## 3:30–4:15 · Statutory interventions
 Right rail: POA catalogue rows with Rule citations, authority, SLA countdown. Dispatch one. Mention Rule 12(4) relief and Witness Protection Scheme 2018 by name.
 
-## 4:15–5:15 · Official command
-`/official/dashboard` — India map, KPI strip, confidence-vs-SLA scatter, stage funnel, high-risk list. Call out a pulsing cluster marker as the C8 idea (village-level intimidation ≠ five counselling appointments).
+## 4:15–5:15 · Admin command centre
+`/admin` — national KPI strip, stage funnel, high-risk list, SLA breaches. Call out district anomaly detection as the C8 idea (village-level intimidation ≠ five counselling appointments).
 
 ## 5:15–5:45 · Audit + consent
 Admin: `GET /audit/verify` pass indicator; victim privacy / consent toggle that actually routes scoring through rules when `llm_processing` is revoked. Redaction counter: **0 PII fields to the model**.
