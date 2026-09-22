@@ -38,7 +38,7 @@ const COORDS: Record<string, { lat: number; lng: number }> = {
   "Bengaluru Urban": { lat: 12.97, lng: 77.59 },
 };
 
-/** Light-themed population intelligence used by the combined control plane. */
+/** Light-themed population intelligence for the admin control plane. */
 export function OpsIntelligence({
   token,
   role,
@@ -47,8 +47,9 @@ export function OpsIntelligence({
   role: string;
 }) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [scope, setScope] = useState<Scope>(role === "official" ? "district" : "national");
+  const [scope, setScope] = useState<Scope>("national");
   const [stateFilter, setStateFilter] = useState<string | null>(null);
+  const [districtFilter, setDistrictFilter] = useState<string>("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -56,8 +57,10 @@ export function OpsIntelligence({
     let cancelled = false;
     (async () => {
       try {
-        const nextScope = role === "official" ? "district" : scope;
-        const data = await apiFetch<DashboardSummary>(`/dashboard/summary?scope=${nextScope}`, {
+        const qs = new URLSearchParams({ scope });
+        if (stateFilter) qs.set("state", stateFilter);
+        if (districtFilter) qs.set("district", districtFilter);
+        const data = await apiFetch<DashboardSummary>(`/dashboard/summary?${qs}`, {
           token,
         });
         if (!cancelled) {
@@ -73,7 +76,7 @@ export function OpsIntelligence({
     return () => {
       cancelled = true;
     };
-  }, [token, scope, role]);
+  }, [token, scope, role, stateFilter, districtFilter]);
 
   const districts: DistrictDatum[] = useMemo(() => {
     return (summary?.cases_by_district ?? []).map((d) => {
@@ -127,7 +130,7 @@ export function OpsIntelligence({
             <button
               key={s}
               type="button"
-              disabled={role === "official" && s !== "district"}
+              disabled={false}
               onClick={() => setScope(s)}
               className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize transition disabled:opacity-40 ${
                 scope === s
@@ -140,6 +143,45 @@ export function OpsIntelligence({
           ))}
         </div>
       </div>
+
+      {(summary.cases_by_state?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <select
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-xs"
+            value={stateFilter ?? ""}
+            onChange={(e) => {
+              setStateFilter(e.target.value || null);
+              setDistrictFilter("");
+              if (e.target.value) setScope("state");
+            }}
+          >
+            <option value="">All states</option>
+            {(summary.cases_by_state ?? []).map((s) => (
+              <option key={s.state} value={s.state}>
+                {s.state} ({s.count})
+              </option>
+            ))}
+          </select>
+          <select
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-xs"
+            value={districtFilter}
+            disabled={!stateFilter}
+            onChange={(e) => {
+              setDistrictFilter(e.target.value);
+              if (e.target.value) setScope("district");
+            }}
+          >
+            <option value="">All districts</option>
+            {(summary.cases_by_district ?? [])
+              .filter((d) => !stateFilter || (d as { state?: string }).state === stateFilter)
+              .map((d) => (
+                <option key={d.district} value={d.district}>
+                  {d.district} ({d.count})
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {[
