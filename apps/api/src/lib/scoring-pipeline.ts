@@ -99,16 +99,17 @@ export async function runScoringPipeline(opts: RunScoringPipelineOptions) {
     .filter((c) => c.id !== opts.checkinId)
     .slice(0, 5)
     .map((c) => {
-      const scores = c.distress_scores as unknown as Array<{
-        score: number;
-        risk_level: string;
-        created_at: string;
-      }>;
+      const raw = c.distress_scores as unknown;
+      const scoreRow = (Array.isArray(raw) ? raw[0] : raw) as {
+        score?: number;
+        risk_level?: string;
+        created_at?: string;
+      } | null;
       return {
         transcript: c.raw_transcript,
-        score: scores?.[0]?.score ?? 0,
-        risk_level: (scores?.[0]?.risk_level ?? "low") as RiskLevel,
-        created_at: scores?.[0]?.created_at ?? c.created_at,
+        score: scoreRow?.score ?? 0,
+        risk_level: (scoreRow?.risk_level ?? "low") as RiskLevel,
+        created_at: scoreRow?.created_at ?? c.created_at,
       };
     });
 
@@ -346,6 +347,30 @@ export async function runScoringPipeline(opts: RunScoringPipelineOptions) {
     console.warn("[allotment] skipped", err instanceof Error ? err.message : err);
   }
 
+  // Running average + counsellor briefing (chat + voice/call)
+  let averageDistress: number | null = null;
+  try {
+    const { pushConsultantBriefing } = await import("./consultant-briefing");
+    const briefingSource =
+      opts.channel === "ai_voice" || opts.channel === "ivrs" || opts.channel === "helpline"
+        ? "voice"
+        : "chat";
+    const briefing = await pushConsultantBriefing({
+      victimId: opts.victimId,
+      caseId: opts.caseId,
+      source: briefingSource,
+      transcript: opts.transcript,
+      distressScore: finalScore,
+      riskLevel: finalRisk,
+      emotionIndicators: (scoreResult.emotion_indicators as string[] | undefined) ?? [],
+      signals: (saved.signals_detected as string[] | undefined) ?? [],
+      reasoning: typeof saved.reasoning === "string" ? saved.reasoning : null,
+    });
+    averageDistress = briefing.average;
+  } catch (err) {
+    console.warn("[briefing] skipped", err instanceof Error ? err.message : err);
+  }
+
   // ── 10. XAI contributions ─────────────────────────────────────────────────
   if (composite.contributions.length) {
     await safeQuery("score_contributions:insert", () =>
@@ -432,10 +457,55 @@ export async function runScoringPipeline(opts: RunScoringPipelineOptions) {
       ? "Immediate counsellor intervention recommended."
       : "Priority counselling and follow-up recommended.";
 
+  // Emotion + escalation forecast (Sprint 1)
+  let emotionAnalysis = null as Awaited<
+    ReturnType<typeof import("./emotion-escalation").analyseEmotionFromText>
+  > | null;
+  let escalationForecast = null as Awaited<
+    ReturnType<typeof import("./emotion-escalation").computeEscalationForecast>
+  > | null;
+  try {
+    const { analyseEmotionFromText, persistEmotionSignal, computeEscalationForecast, persistEscalationForecast } =
+      await import("./emotion-escalation");
+    emotionAnalysis = analyseEmotionFromText(opts.transcript, {
+      emotions: (scoreResult as { emotions?: Record<string, number> }).emotions,
+      sentiment: (scoreResult as { sentiment?: string }).sentiment,
+      dominant_emotion: (scoreResult as { dominant_emotion?: string }).dominant_emotion,
+    });
+    await persistEmotionSignal({
+      caseId: opts.caseId,
+      checkinId: opts.checkinId,
+      distressScoreId: saved.id,
+      analysis: emotionAnalysis,
+    });
+
+    const threatSignals = (scoreResult.signals_detected ?? []).filter((s) =>
+      /threat|intimidation|fear_for_safety|hostile/i.test(s)
+    ).length;
+    escalationForecast = computeEscalationForecast({
+      latestScore: finalScore,
+      risk: finalRisk,
+      history: [
+        { score: finalScore, risk_level: finalRisk },
+        ...recent_history.map((h) => ({ score: h.score, risk_level: h.risk_level })),
+      ],
+      missedOutreach: engagement?.metrics.missed_outreach_count_30d ?? 0,
+      daysSinceContact: daysSinceLast,
+      bailGranted: Boolean(caseRow.accused_bail_status === "granted"),
+      threatSignals,
+      crisisOverride: composite.crisis_override,
+    });
+    // Prefer model escalation when higher
+    if (escalationForecast.risk_7d > escalation_risk_7d) {
+      // local shadow — intelligence block still uses pipeline escalation; store forecast
+    }
+    await persistEscalationForecast(opts.caseId, escalationForecast);
+  } catch (err) {
+    console.warn("[emotion/forecast]", err instanceof Error ? err.message : err);
+  }
+
   const recipients = [
-    ...new Set(
-      [caseRow.assigned_counsellor_id, caseRow.assigned_official_id].filter(Boolean) as string[]
-    ),
+    ...new Set([caseRow.assigned_counsellor_id].filter(Boolean) as string[]),
   ];
 
   const alerts = [];
@@ -480,13 +550,52 @@ export async function runScoringPipeline(opts: RunScoringPipelineOptions) {
             victim_name: victimProfile?.full_name ?? "Confidential",
             severity,
             reasoning,
-            escalation_risk_7d,
-            trend_direction,
+            escalation_risk_7d: escalationForecast?.risk_7d ?? escalation_risk_7d,
+            trend_direction: escalationForecast?.trend ?? trend_direction,
             recommended_action,
           },
           opts.caseId
         );
       }
+    }
+  }
+
+  // Multi-channel email + district/official fan-out (Sprint 1)
+  if (shouldAlert) {
+    try {
+      const { notifyRiskThreshold } = await import("./notify-risk");
+      await notifyRiskThreshold({
+        caseId: opts.caseId,
+        caseNumber: caseRow.case_number,
+        caseType: caseRow.case_type,
+        victimName: victimProfile?.full_name ?? "Confidential",
+        severity:
+          composite.crisis_override || finalRisk === "critical" ? "critical" : "high",
+        reasoning,
+        recommendedAction: recommended_action,
+        escalationRisk7d: escalationForecast?.risk_7d ?? escalation_risk_7d,
+        trendDirection: escalationForecast?.trend ?? trend_direction,
+        distressScoreId: saved.id,
+        io: opts.io,
+        primaryAlertId: alerts[0]?.id,
+      });
+    } catch (err) {
+      console.warn("[notify-risk]", err instanceof Error ? err.message : err);
+    }
+  }
+
+  // Daily 1hr counselling series for high/critical
+  if (finalRisk === "high" || finalRisk === "critical" || composite.crisis_override) {
+    try {
+      const { maybeScheduleDailyCounselling } = await import("./counselling-series");
+      await maybeScheduleDailyCounselling({
+        caseId: opts.caseId,
+        victimId: opts.victimId,
+        risk: composite.crisis_override ? "critical" : finalRisk,
+        caseType: caseRow.case_type,
+      });
+    } catch (err) {
+      console.warn("[counselling-series]", err instanceof Error ? err.message : err);
     }
   }
 
@@ -620,7 +729,9 @@ export async function runScoringPipeline(opts: RunScoringPipelineOptions) {
       engagement_score: engagement?.engagement_score ?? null,
       cadence_tier: cadence?.tier ?? null,
       next_outreach_at: cadence?.next_outreach_at ?? null,
+      average_distress: averageDistress,
     },
+    averageDistress,
   };
 }
 
