@@ -78,10 +78,13 @@ export function AppShell({
   role: roleProp,
   children,
   userName,
+  flush,
 }: {
   role?: UserRole;
   children: React.ReactNode;
   userName?: string;
+  /** Fill the screen under the header so a chat column can pin its composer. */
+  flush?: boolean;
 }) {
   const pathname = usePathname();
   const [role, setRole] = useState<UserRole>(roleProp ?? "victim");
@@ -136,8 +139,13 @@ export function AppShell({
   // Victim shell — top bar (logo + sign out) + left sidebar for page nav
   if (!useSidebar) {
     return (
-      <div className="flex min-h-screen flex-col bg-[var(--sanctuary-canvas,#fdfbf7)]">
-        <header className="sticky top-0 z-50 border-b border-[var(--sanctuary-sand,#e8dcc8)] bg-[var(--sanctuary-canvas,#fdfbf7)]/90 backdrop-blur supports-[backdrop-filter]:bg-[var(--sanctuary-canvas,#fdfbf7)]/80">
+      <div
+        className={cn(
+          "flex min-h-screen flex-col bg-[var(--sanctuary-canvas,#fdfbf7)]",
+          flush && "h-dvh overflow-hidden"
+        )}
+      >
+        <header className="sticky top-0 z-50 shrink-0 border-b border-[var(--sanctuary-sand,#e8dcc8)] bg-[var(--sanctuary-canvas,#fdfbf7)]/90 backdrop-blur supports-[backdrop-filter]:bg-[var(--sanctuary-canvas,#fdfbf7)]/80">
           <div className="flex h-14 items-center justify-between gap-3 px-3 sm:px-5">
             <div className="flex items-center gap-2">
               <button
@@ -247,7 +255,14 @@ export function AppShell({
             )}
           </aside>
 
-          <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+          <main
+            className={cn(
+              "min-w-0 flex-1 overflow-x-hidden",
+              flush
+                ? "flex min-h-0 flex-col overflow-hidden"
+                : "px-4 py-5 sm:px-6 sm:py-6 lg:px-8"
+            )}
+          >
             {children}
           </main>
         </div>

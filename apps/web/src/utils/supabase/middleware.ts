@@ -2,11 +2,73 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { homeForRole, isDeprecatedRole, resolveUserRole } from "@/lib/auth";
 import type { UserRole } from "@samvedna/shared-types";
+import { DEMO_COOKIE, isDemoFallback, parseDemoCookie } from "@/lib/demo-fallback";
 
 const PUBLIC_PATHS = ["/login", "/signup", "/onboard", "/auth", "/brand"];
 const AUTH_PATHS = ["/login", "/signup"];
 
+function demoUpdateSession(request: NextRequest) {
+  const session = parseDemoCookie(request.cookies.get(DEMO_COOKIE)?.value);
+  const pathname = request.nextUrl.pathname;
+  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  const isAuthPage = AUTH_PATHS.some((p) => pathname === p);
+  const user = session
+    ? {
+        id: session.id,
+        user_metadata: { role: session.role, onboarding_completed: true },
+      }
+    : null;
+
+  if (!user && !isPublic && pathname !== "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  const role = session ? resolveUserRole(user as never, { role: session.role }) : null;
+
+  if (user && isAuthPage && role && !isDeprecatedRole(role)) {
+    const url = request.nextUrl.clone();
+    url.pathname = homeForRole(role);
+    return NextResponse.redirect(url);
+  }
+
+  if (user && pathname === "/" && role && !isDeprecatedRole(role)) {
+    const url = request.nextUrl.clone();
+    url.pathname = homeForRole(role);
+    return NextResponse.redirect(url);
+  }
+
+  if (user && pathname !== "/" && !isPublic && role) {
+    if (pathname.startsWith("/victim") && role !== "victim") {
+      return NextResponse.redirect(new URL(homeForRole(role), request.url));
+    }
+    if (
+      (pathname.startsWith("/counselor") || pathname.startsWith("/counsellor")) &&
+      role !== "counsellor" &&
+      role !== "admin"
+    ) {
+      return NextResponse.redirect(new URL(homeForRole(role), request.url));
+    }
+    if (
+      pathname.startsWith("/official") &&
+      role !== "official" &&
+      role !== "admin" &&
+      role !== "counsellor"
+    ) {
+      return NextResponse.redirect(new URL(homeForRole(role), request.url));
+    }
+    if (pathname.startsWith("/admin") && role !== "admin") {
+      return NextResponse.redirect(new URL(homeForRole(role), request.url));
+    }
+  }
+
+  return NextResponse.next({ request });
+}
+
 export async function updateSession(request: NextRequest) {
+  if (isDemoFallback()) return demoUpdateSession(request);
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;

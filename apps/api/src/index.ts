@@ -30,6 +30,8 @@ import { intelligenceRouter } from "./routes/intelligence";
 import { victimMobileRouter } from "./routes/victim-mobile";
 import { startCadenceTick } from "./lib/cadence-engine";
 import { supabaseAdmin } from "./lib/supabase";
+import { demoFallbackRouter } from "./demo/router";
+import { isDemoFallback } from "./demo/data";
 
 const PORT = parseInt(process.env.PORT ?? "4000", 10);
 const CORS_ORIGINS = (
@@ -53,8 +55,18 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", service: "samvedna-api", timestamp: new Date().toISOString() });
+  res.json({
+    status: "ok",
+    service: "samvedna-api",
+    mode: isDemoFallback() ? "demo-fallback" : "supabase",
+    timestamp: new Date().toISOString(),
+  });
 });
+
+if (isDemoFallback()) {
+  console.log("[demo] Local fallback database is active. Sign-in does not use Supabase.");
+  app.use(demoFallbackRouter());
+}
 
 app.use("/checkins", checkinsRouter(io));
 app.use("/chat", chatRouter(io));
@@ -109,8 +121,10 @@ io.on("connection", (socket) => {
 httpServer.listen(PORT, () => {
   console.log(`Samvedna API running on http://localhost:${PORT}`);
   console.log(`Socket.io CORS origins: ${CORS_ORIGINS.join(", ")}`);
-  // Care cadence tick — process due / missed outreach every 60s
-  startCadenceTick(io, 60_000);
+  if (!isDemoFallback()) {
+    // Care cadence tick — process due / missed outreach every 60s
+    startCadenceTick(io, 60_000);
+  }
 });
 
 export { io, supabaseAdmin };

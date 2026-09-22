@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { homeForRole, isDeprecatedRole, resolveUserRole } from "@/lib/auth";
+import { DEMO_ACCOUNTS, DEMO_ADMIN_PASSWORD, DEMO_PASSWORD, isDemoFallback } from "@/lib/demo-fallback";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -174,6 +175,21 @@ export default function LoginPage() {
             <p className="mb-4 text-center text-xs text-muted-foreground">
               System administration portal — use the fixed admin credentials from your ops notes.
             </p>
+          )}
+
+          {isDemoFallback() && !IS_ADMIN_PORTAL && (
+            <div className="mb-4 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-left text-xs text-muted-foreground">
+              <p className="font-semibold text-foreground">Local demo database</p>
+              <p className="mt-1">Password for every account except admin: {DEMO_PASSWORD}</p>
+              <p>Admin password: {DEMO_ADMIN_PASSWORD}</p>
+              <ul className="mt-2 space-y-0.5 font-mono text-[11px] text-foreground">
+                {DEMO_ACCOUNTS.map((account) => (
+                  <li key={account.email}>
+                    {account.email} · {account.role}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">

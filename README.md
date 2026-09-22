@@ -598,4 +598,5 @@ Samvedna does **not** replace professional emergency care.
 
 *Listening beyond words · शब्दों से परे*
 #   s a m v e d n a  
+ #   s a m v e d n a  
  

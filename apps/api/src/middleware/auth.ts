@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { supabaseAdmin } from "../lib/supabase";
 import type { UserRole } from "@samvedna/shared-types";
+import { demoUserFromToken, isDemoFallback } from "../demo/data";
 
 export interface AuthUser {
   id: string;
@@ -25,6 +26,24 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   const token = header.slice(7);
+
+  if (token.startsWith("demo.")) {
+    if (!isDemoFallback()) {
+      return res.status(401).json({ error: "Demo session is disabled" });
+    }
+    const demoUser = demoUserFromToken(token);
+    if (!demoUser) {
+      return res.status(401).json({ error: "Unknown demo session" });
+    }
+    req.user = {
+      id: demoUser.id,
+      email: demoUser.email,
+      role: demoUser.role,
+      full_name: demoUser.full_name,
+      user_metadata: { role: demoUser.role, full_name: demoUser.full_name },
+    };
+    return next();
+  }
 
   try {
     const { data, error } = await supabaseAdmin.auth.getUser(token);
