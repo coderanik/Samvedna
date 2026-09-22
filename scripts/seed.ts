@@ -40,7 +40,7 @@ const ADMIN_PASSWORD = "SamvednaAdmin@2024";
 
 interface SeedUser {
   email: string;
-  role: "admin" | "official" | "counsellor" | "victim";
+  role: "admin" | "counsellor" | "victim";
   full_name: string;
   preferred_language: string;
   phone_number?: string;
@@ -52,20 +52,6 @@ const USERS: SeedUser[] = [
     role: "admin",
     full_name: "System Admin",
     preferred_language: "en",
-  },
-  {
-    email: "official@samvedna.demo",
-    role: "official",
-    full_name: "Rajesh Kumar (District Nodal Officer)",
-    preferred_language: "en",
-    phone_number: "+919876543210",
-  },
-  {
-    email: "official2@samvedna.demo",
-    role: "official",
-    full_name: "Sangeeta Menon (District Magistrate Office)",
-    preferred_language: "en",
-    phone_number: "+919876543215",
   },
   {
     email: "counsellor1@samvedna.demo",
@@ -395,9 +381,6 @@ async function main() {
     userIds[user.email] = await createOrGetUser(user);
   }
 
-  const officialId = userIds["official@samvedna.demo"];
-  const official2Id = userIds["official2@samvedna.demo"];
-
   // Create cases
   console.log("\nCreating cases...");
   const caseIds: Record<string, string> = {};
@@ -405,8 +388,6 @@ async function main() {
   for (const c of CASES) {
     const victimId = userIds[c.victim_email];
     const counsellorId = userIds[c.counsellor_email];
-    const assignedOfficial =
-      c.state === "Maharashtra" || c.district === "Udaipur" ? official2Id : officialId;
 
     const { data: existing } = await supabase
       .from("cases")
@@ -428,7 +409,7 @@ async function main() {
         case_type: c.case_type,
         status: c.status,
         assigned_counsellor_id: counsellorId,
-        assigned_official_id: assignedOfficial,
+        assigned_official_id: null,
         district: c.district,
         state: c.state,
       })
@@ -561,7 +542,7 @@ async function main() {
     await supabase.from("intervention_notes").insert({
       case_id: criticalCaseId,
       counsellor_id: userIds["counsellor1@samvedna.demo"],
-      note: "Attempted phone contact — victim answered briefly. Scheduled home visit for tomorrow morning. Coordinated with district official for compensation status update.",
+      note: "Attempted phone contact — victim answered briefly. Scheduled home visit for tomorrow morning. Coordinated with the district compensation desk for a status update.",
     });
     console.log("  + Intervention note for SAM-2024-003");
   }
@@ -581,7 +562,7 @@ async function main() {
         case_id: caseId,
         event_type: "case_opened",
         description: `Case ${c.case_number} registered for ${c.case_type}`,
-        created_by: officialId,
+        created_by: userIds["admin@samvedna.demo"],
       });
     }
   }
