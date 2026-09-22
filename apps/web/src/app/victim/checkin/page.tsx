@@ -7,6 +7,7 @@ import { MeshGradient } from "@/components/mesh-gradient";
 import { BreathingOrb } from "@/components/breathing-orb";
 import { CrisisSheet } from "@/components/crisis-sheet";
 import { apiFetch } from "@/lib/utils";
+import { VoiceNoteUpload } from "@/components/voice-note-upload";
 import { getMessages, type Locale } from "@/i18n/messages";
 import type { Case, CaseWithDetails, CreateCheckinResponse } from "@samvedna/shared-types";
 
@@ -296,6 +297,12 @@ export default function VictimCheckinPage() {
                 }}
               />
             </div>
+
+            {caseRow && token && (
+              <div className="mt-8">
+                <VoiceNoteUpload caseId={caseRow.id} token={token} />
+              </div>
+            )}
 
             <form onSubmit={handleSend} className="mt-8 flex gap-3 border-b border-[var(--sanctuary-sand)] pb-2">
               <input
